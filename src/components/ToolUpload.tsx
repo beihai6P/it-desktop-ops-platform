@@ -1,0 +1,296 @@
+import { useState } from 'react';
+import { X, Upload, FileText, Image, Check } from 'lucide-react';
+
+interface ToolUploadProps {
+  onClose: () => void;
+  onSubmit: (data: FormData) => void;
+}
+
+export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    longDescription: '',
+    category: '',
+    type: 'script' as 'script' | 'tool' | 'plugin',
+    version: 'v1.0.0',
+    license: 'MIT',
+    file: null as File | null,
+    screenshots: [] as File[],
+    tags: '',
+    compatibility: '',
+  });
+
+  const handleChange = (field: string, value: string | File | File[]) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleChange('file', e.target.files[0]);
+    }
+  };
+
+  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      handleChange('screenshots', [...formData.screenshots, ...newFiles]);
+    }
+  };
+
+  const removeScreenshot = (index: number) => {
+    const newScreenshots = [...formData.screenshots];
+    newScreenshots.splice(index, 1);
+    handleChange('screenshots', newScreenshots);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const data = new FormData();
+    data.append('name', formData.name);
+    data.append('description', formData.description);
+    data.append('longDescription', formData.longDescription);
+    data.append('category', formData.category);
+    data.append('type', formData.type);
+    data.append('version', formData.version);
+    data.append('license', formData.license);
+    data.append('tags', formData.tags);
+    data.append('compatibility', formData.compatibility);
+    if (formData.file) {
+      data.append('file', formData.file);
+    }
+    formData.screenshots.forEach((file) => {
+      data.append('screenshots', file);
+    });
+    onSubmit(data);
+    onClose();
+  };
+
+  const categories = ['脚本工具', '系统工具', '硬件工具', '网络工具', '其他'];
+  const licenses = ['MIT', 'GPL', 'Apache', 'BSD', '其他'];
+  const compatibilities = ['Windows 10', 'Windows 11', 'Windows Server 2019', 'Windows Server 2022'];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-primary/10">
+          <h3 className="text-xl font-semibold text-theme-text">上传工具</h3>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-primary/10 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5 text-text-muted" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-theme-text mb-2">工具名称 *</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => handleChange('name', e.target.value)}
+                required
+                className="w-full px-4 py-3 bg-theme-bg/50 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="输入工具名称"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-theme-text mb-2">版本号</label>
+              <input
+                type="text"
+                value={formData.version}
+                onChange={(e) => handleChange('version', e.target.value)}
+                className="w-full px-4 py-3 bg-theme-bg/50 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="v1.0.0"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-theme-text mb-2">分类 *</label>
+              <select
+                value={formData.category}
+                onChange={(e) => handleChange('category', e.target.value)}
+                required
+                className="w-full px-4 py-3 bg-theme-bg/50 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <option value="">请选择分类</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-theme-text mb-2">类型 *</label>
+              <select
+                value={formData.type}
+                onChange={(e) => handleChange('type', e.target.value as 'script' | 'tool' | 'plugin')}
+                required
+                className="w-full px-4 py-3 bg-theme-bg/50 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <option value="script">脚本</option>
+                <option value="tool">工具</option>
+                <option value="plugin">插件</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-theme-text mb-2">简短描述 *</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => handleChange('description', e.target.value)}
+              required
+              rows={2}
+              className="w-full px-4 py-3 bg-theme-bg/50 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+              placeholder="简要描述工具的功能"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-theme-text mb-2">详细描述</label>
+            <textarea
+              value={formData.longDescription}
+              onChange={(e) => handleChange('longDescription', e.target.value)}
+              rows={4}
+              className="w-full px-4 py-3 bg-theme-bg/50 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+              placeholder="详细描述工具的功能特性、使用方法等"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-theme-text mb-2">许可证</label>
+              <select
+                value={formData.license}
+                onChange={(e) => handleChange('license', e.target.value)}
+                className="w-full px-4 py-3 bg-theme-bg/50 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {licenses.map((license) => (
+                  <option key={license} value={license}>{license}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-theme-text mb-2">标签 <span className="text-text-muted font-normal">(逗号分隔)</span></label>
+              <input
+                type="text"
+                value={formData.tags}
+                onChange={(e) => handleChange('tags', e.target.value)}
+                className="w-full px-4 py-3 bg-theme-bg/50 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="标签1, 标签2, 标签3"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-theme-text mb-2">兼容性</label>
+            <div className="flex flex-wrap gap-2">
+              {compatibilities.map((comp) => (
+                <label
+                  key={comp}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-colors ${
+                    formData.compatibility.includes(comp)
+                      ? 'bg-primary text-white'
+                      : 'bg-theme-bg/50 text-text-muted hover:bg-primary/10'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.compatibility.includes(comp)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        handleChange('compatibility', formData.compatibility + ',' + comp);
+                      } else {
+                        handleChange('compatibility', formData.compatibility.replace(',' + comp, ''));
+                      }
+                    }}
+                    className="sr-only"
+                  />
+                  {comp}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-theme-text mb-2">上传文件 *</label>
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-primary/30 rounded-xl cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors">
+              <div className="flex flex-col items-center justify-center py-4">
+                <FileText className="w-10 h-10 text-primary/50 mb-2" />
+                <p className="text-sm text-text-muted">点击或拖拽上传文件</p>
+                <p className="text-xs text-text-muted mt-1">支持 .exe, .ps1, .zip, .rar</p>
+              </div>
+              <input
+                type="file"
+                onChange={handleFileChange}
+                required
+                className="hidden"
+              />
+            </label>
+            {formData.file && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-theme-text">
+                <Check className="w-4 h-4 text-green-500" />
+                {formData.file.name}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-theme-text mb-2">预览截图（可选）</label>
+            <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-primary/30 rounded-xl cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors">
+              <div className="flex flex-col items-center justify-center py-2">
+                <Image className="w-8 h-8 text-primary/50 mb-1" />
+                <p className="text-sm text-text-muted">点击上传截图</p>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleScreenshotChange}
+                className="hidden"
+              />
+            </label>
+            {formData.screenshots.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {formData.screenshots.map((file, index) => (
+                  <div key={index} className="relative group">
+                    <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <Image className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <button
+                      onClick={() => removeScreenshot(index)}
+                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-primary/10">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors"
+            >
+              <Upload className="w-5 h-5" />
+              上传工具
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
