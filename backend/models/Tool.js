@@ -1,4 +1,4 @@
-const mongoose = require('../utils/mockMongoose');
+const mongoose = require('mongoose');
 
 const ToolCommentSchema = new mongoose.Schema({
   id: {
@@ -157,6 +157,29 @@ const ToolSchema = new mongoose.Schema({
   isVerified: {
     type: Boolean,
     default: false
+  },
+  // 存储系统相关字段
+  storageFileId: {
+    type: String,
+    index: true
+  },
+  hasRealFile: {
+    type: Boolean,
+    default: false
+  },
+  fileHash: {
+    md5: {
+      type: String
+    },
+    sha256: {
+      type: String
+    }
+  },
+  actualFileSize: {
+    type: Number
+  },
+  actualMimeType: {
+    type: String
   }
 });
 

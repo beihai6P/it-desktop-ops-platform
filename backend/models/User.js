@@ -1,4 +1,4 @@
-const mongoose = require('../utils/mockMongoose');
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const UserSchema = new mongoose.Schema({
@@ -25,8 +25,32 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'moderator', 'member'],
+    enum: ['admin', 'moderator', 'member', 'user'],
     default: 'member'
+  },
+  isAdmin: {
+    type: Boolean,
+    default: false
+  },
+  roles: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Role'
+  }],
+  permissions: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Permission'
+  }],
+  phone: {
+    type: String,
+    trim: true
+  },
+  department: {
+    type: String,
+    trim: true
+  },
+  position: {
+    type: String,
+    trim: true
   },
   posts: {
     type: Number,
@@ -42,14 +66,24 @@ const UserSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['online', 'offline', 'away'],
+    enum: ['online', 'offline', 'away', 'active', 'inactive', 'banned'],
     default: 'offline'
   },
   loginAttempts: {
     type: Number,
     default: 0
   },
+  lockedUntil: {
+    type: Date
+  },
+  lastLoginAt: {
+    type: Date
+  },
   createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
     type: Date,
     default: Date.now
   }

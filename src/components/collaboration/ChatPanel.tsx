@@ -13,14 +13,8 @@ interface ChatPanelProps {
   sessionTitle: string;
 }
 
-const mockMessages: ChatMessage[] = [
-  { id: '1', author: '张工', content: '您好，请问有什么可以帮助您的？', timestamp: '10:30', isMine: false },
-  { id: '2', author: '用户A', content: '我的打印机无法打印了', timestamp: '10:31', isMine: true },
-  { id: '3', author: '张工', content: '好的，请先检查一下打印机是否连接正常', timestamp: '10:32', isMine: false },
-  { id: '4', author: '张工', content: '您可以尝试重启一下打印机服务', timestamp: '10:32', isMine: false },
-  { id: '5', author: '用户A', content: '好的，我试试看', timestamp: '10:33', isMine: true },
-  { id: '6', author: '李工', content: '我来协助一下，用户您可以先检查一下打印队列', timestamp: '10:35', isMine: false },
-];
+// 聊天消息数据 - 请从API获取
+const mockMessages: ChatMessage[] = [];
 
 export default function ChatPanel({ sessionTitle }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(mockMessages);

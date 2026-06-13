@@ -51,27 +51,17 @@ export default function LogUploader({ onParseComplete }: LogUploaderProps) {
 
     setTimeout(() => {
       const mockParsedData: ParsedLogData = {
-        osVersion: 'Windows 10 Pro 22H2',
+        osVersion: '',
         osBit: '64',
-        buildNumber: '10.0.19045.3693',
-        hostname: 'WIN-SRV-2023',
-        cpuModel: 'Intel Core i7-12700',
-        memorySizeMB: 16384,
-        diskInfo: [
-          { type: 'NVMe', capacityGB: 1024 },
-          { type: 'HDD', capacityGB: 4096 },
-        ],
-        gpuModel: 'NVIDIA GeForce RTX 3060',
-        faultyDriver: 'NVIDIA GeForce',
-        driverVersion: '531.79',
-        timelineEvents: [
-          { timestamp: '2024-01-15 14:32:15', eventId: 10016, source: 'Microsoft-Windows-DistributedCOM', message: 'DCOM 无法与计算机 192.168.1.100 上的服务器 {12345678-1234-1234-1234-1234567890AB} 通信', level: 'error' },
-          { timestamp: '2024-01-15 14:32:20', eventId: 4688, source: 'Security', message: '已创建新进程。进程 ID: 1234', level: 'info' },
-          { timestamp: '2024-01-15 14:32:25', eventId: 1000, source: 'Application Error', message: '应用程序 w3wp.exe 发生严重错误', level: 'error' },
-          { timestamp: '2024-01-15 14:32:30', eventId: 5140, source: 'Security', message: '网络共享对象被访问', level: 'info' },
-          { timestamp: '2024-01-15 14:32:35', eventId: 129, source: 'Disk', message: '磁盘 I/O 错误', level: 'warning' },
-          { timestamp: '2024-01-15 14:32:40', eventId: 7000, source: 'Service Control Manager', message: '服务无法启动', level: 'error' },
-        ],
+        buildNumber: '',
+        hostname: '',
+        cpuModel: '',
+        memorySizeMB: 0,
+        diskInfo: [],
+        gpuModel: '',
+        faultyDriver: undefined,
+        driverVersion: undefined,
+        timelineEvents: [],
       };
 
       setParsedResult(mockParsedData);

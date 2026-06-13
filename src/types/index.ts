@@ -13,6 +13,7 @@ export interface Case {
   deviceType: string;
   brand: string;
   model: string;
+  systemVersion?: string;
   status: 'resolved' | 'pending' | 'in_progress';
   views: number;
   createdAt: string;
@@ -29,6 +30,157 @@ export interface Case {
   verification: boolean;
   likes: number;
   comments: number;
+  isLiked?: boolean;
+  isBookmarked?: boolean;
+  quality?: 'verified' | 'standard' | 'basic';
+  visibility?: 'public' | 'internal' | 'private';
+  attachments?: Attachment[];
+}
+
+export interface Attachment {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  type: string;
+}
+
+// 案例分类
+export type CaseCategory = 
+  | 'all' 
+  | 'system' 
+  | 'network' 
+  | 'hardware' 
+  | 'printer' 
+  | 'software' 
+  | 'virtual' 
+  | 'domain';
+
+// 排序规则
+export type SortRule = 'latest' | 'views' | 'likes';
+
+// 质量筛选
+export type QualityFilter = 'all' | 'verified' | 'standard' | 'basic';
+
+// 案例统计数据
+export interface CaseStats {
+  totalPosts: number;
+  closedSolutions: number;
+  weeklyNew: number;
+}
+
+// AI诊断相关类型
+export interface DiagnosisSolution {
+  id: string;
+  title: string;
+  steps: string[];
+  estimatedTime: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  successRate: number;
+}
+
+export interface DiagnosisAnalysis {
+  confidence: number;
+  primaryCause: string;
+  secondaryCauses: string[];
+  suggestedSolutions: DiagnosisSolution[];
+  relatedCases: {
+    id: string;
+    title: string;
+    matchScore: number;
+    link: string;
+  }[];
+  precautions: string[];
+}
+
+export interface DiagnosisResult {
+  diagnosisId: string;
+  symptoms: string[];
+  analysis: DiagnosisAnalysis;
+  aiSuggestion: string;
+}
+
+export interface DiagnosisRequest {
+  symptoms: string[];
+  deviceType?: string;
+  brand?: string;
+  model?: string;
+  errorCode?: string;
+  additionalInfo?: string;
+}
+
+export interface Symptom {
+  id: string;
+  text: string;
+  category: string;
+  frequency: number;
+}
+
+// AI诊断历史记录
+export interface DiagnosisHistory {
+  id: string;
+  symptoms: string[];
+  timestamp: string;
+  resultCount: number;
+}
+
+// 评论相关类型
+export interface CaseComment {
+  id: string;
+  caseId: string;
+  author: string;
+  authorId: string;
+  authorAvatar?: string;
+  content: string;
+  likes: number;
+  createdAt: string;
+  replies: CaseReply[];
+}
+
+export interface CaseReply {
+  id: string;
+  commentId: string;
+  author: string;
+  authorId: string;
+  content: string;
+  likes: number;
+  createdAt: string;
+}
+
+export interface Reply {
+  id: string;
+  commentId: string;
+  author: string;
+  authorId: string;
+  content: string;
+  likes: number;
+  createdAt: string;
+}
+
+// 草稿相关类型
+export interface CaseDraft {
+  id: string;
+  title: string;
+  category: CaseCategory;
+  systemVersion: string;
+  symptoms: string[];
+  causeAnalysis: string;
+  solution: string;
+  steps: CaseStep[];
+  tags: string[];
+  visibility: 'public' | 'internal' | 'private';
+  attachments: Attachment[];
+  updatedAt: string;
+}
+
+// 案例模板
+export interface CaseTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: CaseCategory;
+  symptoms: string[];
+  steps: CaseStep[];
 }
 
 export interface Template {
@@ -134,16 +286,18 @@ export interface Comment {
   id: string;
   postId: string;
   author: string;
+  authorId: string;
   content: string;
   likes: number;
   createdAt: string;
-  replies?: Reply[];
+  replies: Reply[];
 }
 
 export interface Reply {
   id: string;
   commentId: string;
   author: string;
+  authorId: string;
   content: string;
   likes: number;
   createdAt: string;
@@ -253,6 +407,7 @@ export interface Tool {
   version: string;
   fileSize: string;
   downloadUrl: string;
+  actualMimeType?: string;
   screenshots?: string[];
   license: string;
   compatibility: string[];

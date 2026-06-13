@@ -96,6 +96,7 @@ export const caseAPI = {
   update: (id: string, data: Partial<Case>) => api.put(`/cases/${id}`, data),
   delete: (id: string) => api.delete(`/cases/${id}`),
   like: (id: string) => api.post(`/cases/${id}/like`),
+  bookmark: (id: string) => api.post(`/cases/${id}/bookmark`),
   getStats: () => api.get('/cases/stats'),
 };
 
@@ -188,6 +189,16 @@ export const toolAPI = {
   verify: (id: string) => api.post(`/tools/${id}/verify`),
   feature: (id: string) => api.post(`/tools/${id}/feature`),
   getStats: () => api.get('/tools/stats'),
+};
+
+export const storageAPI = {
+  upload: (data: FormData) => api.post('/storage/upload', data, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+  download: (fileId: string) => api.get(`/storage/download/${fileId}`),
+  info: (fileId: string) => api.get(`/storage/info/${fileId}`),
 };
 
 import type { Session } from '@/types';

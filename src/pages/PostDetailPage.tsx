@@ -144,14 +144,15 @@ export default function PostDetailPage() {
             return {
               ...comment,
               replies: [
-                ...(comment.replies || []),
+                ...comment.replies,
                 {
                   id: `r${Date.now()}`,
                   commentId,
                   author: '运维工程师',
+                  authorId: 'current-user',
                   content: replyText,
                   likes: 0,
-                  createdAt: '刚刚',
+                  createdAt: new Date().toISOString(),
                 },
               ],
             };

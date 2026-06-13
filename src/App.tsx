@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
-import Sidebar from '@/components/Sidebar';
 import PublicHome from '@/pages/PublicHome';
 import Home from '@/pages/Home';
 import Diagnosis from '@/pages/Diagnosis';
@@ -72,33 +70,23 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  
   return (
-    <div className="flex h-screen bg-theme-bg">
-      <Sidebar isOpen={sidebarOpen} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="flex-1 overflow-hidden">
-          {children}
-        </main>
-      </div>
+    <div className="flex flex-col h-screen bg-theme-bg">
+      <Header />
+      <main className="flex-1 overflow-y-auto">
+        {children}
+      </main>
     </div>
   );
 };
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  
   return (
-    <div className="flex h-screen bg-theme-bg">
-      <Sidebar isOpen={sidebarOpen} adminMode />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="flex-1 overflow-hidden">
-          {children}
-        </main>
-      </div>
+    <div className="flex flex-col h-screen bg-theme-bg">
+      <Header />
+      <main className="flex-1 overflow-y-auto">
+        {children}
+      </main>
     </div>
   );
 };
@@ -114,24 +102,26 @@ function AppRoutes() {
       } />
       
       <Route path="/home" element={
-        !isAuthenticated ? <PublicHome /> : (
-          isAdmin ? (
-            <ProtectedRoute>
-              <AdminLayout>
-                <Home />
-              </AdminLayout>
-            </ProtectedRoute>
-          ) : (
-            <ProtectedRoute>
-              <MainLayout>
-                <Home />
-              </MainLayout>
-            </ProtectedRoute>
-          )
-        )
+        <AdminRoute>
+          <AdminLayout>
+            <Home />
+          </AdminLayout>
+        </AdminRoute>
       } />
       
-      <Route path="/" element={<PublicHome />} />
+      <Route path="/" element={
+        isAuthenticated ? (
+          isAdmin ? (
+            <Navigate to="/home" replace />
+          ) : (
+            <MainLayout>
+              <PublicHome />
+            </MainLayout>
+          )
+        ) : (
+          <PublicHome />
+        )
+      } />
       
       <Route path="/diagnosis" element={
         <ProtectedRoute>
@@ -284,10 +274,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <Router>
+      <AuthProvider>
         <AppRoutes />
-      </Router>
-    </AuthProvider>
+      </AuthProvider>
+    </Router>
   );
 }

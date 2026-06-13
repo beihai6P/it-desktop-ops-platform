@@ -118,14 +118,6 @@ export default function Login() {
               )}
             </button>
           </form>
-
-          <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
-            <p className="text-blue-200/60 text-xs text-center mb-2">管理员账号</p>
-            <div className="text-xs text-blue-200/80 text-center">
-              <p>邮箱: 877628367@qq.com</p>
-              <p>密码: beihaibei8..</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

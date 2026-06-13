@@ -1,4 +1,4 @@
-const mongoose = require('../utils/mockMongoose');
+const mongoose = require('mongoose');
 
 const TicketSchema = new mongoose.Schema({
   id: {

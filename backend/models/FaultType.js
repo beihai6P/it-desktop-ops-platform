@@ -1,4 +1,4 @@
-const mongoose = require('../utils/mockMongoose');
+const mongoose = require('mongoose');
 
 const faultTypeSchema = new mongoose.Schema({
   name: {

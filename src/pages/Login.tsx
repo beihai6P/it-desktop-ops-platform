@@ -261,15 +261,6 @@ const Login: React.FC = () => {
             </p>
           </div>
         </div>
-
-        {/* Demo Credentials */}
-        <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
-          <p className="text-blue-200/60 text-xs text-center mb-2">演示账号</p>
-          <div className="grid grid-cols-2 gap-2 text-xs text-blue-200/80">
-            <div className="text-center">管理员: admin@example.com</div>
-            <div className="text-center">用户: user@example.com</div>
-          </div>
-        </div>
       </div>
     </div>
   );

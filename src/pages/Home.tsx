@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Activity, Users, FileText, Clock, AlertTriangle, TrendingUp, ArrowUpRight, ArrowDownRight, RefreshCw, Server, Database, Zap, Shield, LayoutDashboard } from 'lucide-react';
+import { Activity, Users, FileText, Clock, AlertTriangle, TrendingUp, ArrowUpRight, ArrowDownRight, RefreshCw, Server, Database, Zap, Shield, LayoutDashboard, Home as HomeIcon } from 'lucide-react';
 import { caseAPI, ticketAPI, userAPI } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Case, Ticket, User } from '@/types';
 
 export default function Home() {
+  const { user } = useAuth();
   const [cases, setCases] = useState<Case[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const isAdmin = user?.isAdmin || user?.role === 'admin';
 
   useEffect(() => {
     loadData();
@@ -141,16 +145,16 @@ export default function Home() {
       <div className="flex-1 p-6 overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                <LayoutDashboard className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-theme-text">管理后台</h2>
-                <p className="text-sm text-text-muted mt-1">欢迎回来，查看系统概览</p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                  {isAdmin ? <LayoutDashboard className="w-5 h-5 text-primary" /> : <HomeIcon className="w-5 h-5 text-primary" />}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-theme-text">{isAdmin ? '管理后台' : '首页'}</h2>
+                  <p className="text-sm text-text-muted mt-1">{isAdmin ? '欢迎回来，查看系统概览' : '欢迎回来，查看您的工作台'}</p>
+                </div>
               </div>
             </div>
-          </div>
           <button
             onClick={() => {
               setLoading(true);

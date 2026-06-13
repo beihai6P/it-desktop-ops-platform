@@ -83,7 +83,7 @@ export default function PublicHome() {
   const isAdmin = user?.isAdmin || user?.role === 'admin';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 overflow-y-auto">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-primary/10">
         <div className="max-w-7xl mx-auto px-6 py-3">
           <div className="flex items-center justify-between">
@@ -109,13 +109,15 @@ export default function PublicHome() {
             <div className="flex items-center gap-4">
               {isAuthenticated ? (
                 <>
-                  <button
-                    onClick={() => navigate('/home')}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors"
-                  >
-                    <LayoutDashboard className="w-4 h-4" />
-                    管理后台
-                  </button>
+                  {(user?.role === 'admin' || user?.isAdmin) && (
+                    <button
+                      onClick={() => navigate('/home')}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors"
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                      管理后台
+                    </button>
+                  )}
                   <div className="relative">
                     <button
                       onClick={() => setShowUserMenu(!showUserMenu)}
