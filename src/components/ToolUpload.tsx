@@ -44,7 +44,6 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
   const handleFileUploadComplete = (fileId: string, fileName: string) => {
     setStorageFileId(fileId);
     setFileUploaded(true);
-    console.log('文件上传完成:', fileId, fileName);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

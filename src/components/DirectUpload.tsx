@@ -34,6 +34,20 @@ interface FileItem {
 
 const CHUNK_SIZE = 5 * 1024 * 1024;
 
+interface PresignedResult {
+  success: boolean;
+  fileId?: string;
+  presignedUrl?: string;
+  duplicate?: boolean;
+  existingFile?: {
+    fileId: string;
+    originalName: string;
+    size: number;
+    uploadedAt: string;
+  };
+  message?: string;
+}
+
 const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'private' }: {
   onUploadComplete?: (fileId: string, fileName: string) => void;
   category?: string;
@@ -114,20 +128,6 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
 
     return { valid: true, message: '' };
   };
-
-interface PresignedResult {
-  success: boolean;
-  fileId?: string;
-  presignedUrl?: string;
-  duplicate?: boolean;
-  existingFile?: {
-    fileId: string;
-    originalName: string;
-    size: number;
-    uploadedAt: string;
-  };
-  message?: string;
-}
 
   const getPresignedUrl = async (file: File, sha256: string | null): Promise<PresignedResult> => {
     const token = localStorage.getItem('token');
@@ -270,7 +270,10 @@ interface PresignedResult {
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
 
-        const partUrl = partUrls[i];
+        const partUrl = partUrls[i]?.url;
+        if (!partUrl) {
+          throw new Error(`分片${i + 1}的URL不存在`);
+        }
         const response = await fetch(partUrl, {
           method: 'PUT',
           body: chunk,

@@ -92,14 +92,6 @@ export default function ToolDetail({ tool, onClose }: ToolDetailProps) {
         filename = `${tool.name}${ext}`;
       }
 
-      console.log('=== 下载调试信息 ===');
-      console.log('Content-Type:', contentType);
-      console.log('Content-Disposition:', contentDisposition);
-      console.log('ArrayBuffer大小:', arrayBuffer.byteLength);
-      console.log('Blob大小:', blob.size);
-      console.log('Blob类型:', blob.type);
-      console.log('最终文件名:', filename);
-
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -107,13 +99,10 @@ export default function ToolDetail({ tool, onClose }: ToolDetailProps) {
       document.body.appendChild(a);
       a.click();
       
-      // 延长清理时间，确保下载完成
       setTimeout(() => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       }, 1000);
-      
-      console.log('下载完成');
     } catch (error) {
       console.error('下载错误:', error);
       alert(`下载失败: ${error.message}`);

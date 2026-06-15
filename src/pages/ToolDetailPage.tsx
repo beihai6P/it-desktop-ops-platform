@@ -65,27 +65,17 @@ export default function ToolDetailPage() {
       let filename = `${tool.name}`;
       
       if (contentDisposition) {
-        console.log('Content-Disposition原始值:', contentDisposition);
-        
-        // 支持 RFC 5987 格式: filename*=UTF-8''encoded_filename
         const utf8Regex = /filename\*=UTF-8''([^;]+)/i;
         const matchUtf8 = contentDisposition.match(utf8Regex);
         
-        // 支持普通格式: filename="name" 或 filename=name
         const matchIso = contentDisposition.match(/filename="([^"]+)"/);
         const matchSimple = contentDisposition.match(/filename=([^;\r\n "]+)/);
-        
-        console.log('UTF-8匹配结果:', matchUtf8);
-        console.log('ISO匹配结果:', matchIso);
-        console.log('简单匹配结果:', matchSimple);
         
         if (matchUtf8 && matchUtf8[1]) {
           try {
             const decoded = decodeURIComponent(matchUtf8[1]);
-            console.log('UTF-8解码结果:', decoded);
             filename = decoded;
-          } catch (e) {
-            console.error('URL解码失败:', e);
+          } catch {
           }
         } else if (matchIso && matchIso[1]) {
           filename = matchIso[1];
@@ -113,14 +103,6 @@ export default function ToolDetailPage() {
         const ext = extensionMap[contentType] || '.exe';
         filename = `${tool.name}${ext}`;
       }
-
-      console.log('=== 下载调试信息 ===');
-      console.log('Content-Type:', contentType);
-      console.log('Content-Disposition:', contentDisposition);
-      console.log('ArrayBuffer大小:', arrayBuffer.byteLength);
-      console.log('Blob大小:', blob.size);
-      console.log('Blob类型:', blob.type);
-      console.log('最终文件名:', filename);
 
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
