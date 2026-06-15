@@ -1,28 +1,16 @@
-/**
- * 前端直传火山引擎对象存储组件
- * 优化特性：
- * 1. SHA256预校验 - 上传前检测重复文件
- * 2. 友好的上传进度提示
- * 3. 支持大文件分片上传
- * 4. 幂等校验支持
- */
-
-import { useState, useCallback } from 'react';
-import { Upload, Progress, Modal } from 'antd';
+import { useState, useCallback, useRef } from 'react';
 import {
   Upload as UploadIcon,
   CheckCircle,
-  Circle,
   FileText,
   Image,
   Video,
   Clock,
   Loader2,
   CloudUpload,
-  Info,
+  AlertCircle,
   AlertTriangle,
   RefreshCw,
-  AlertCircle,
 } from 'lucide-react';
 
 interface FileItem {
@@ -44,7 +32,7 @@ interface FileItem {
   };
 }
 
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk
+const CHUNK_SIZE = 5 * 1024 * 1024;
 
 const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'private' }: {
   onUploadComplete?: (fileId: string, fileName: string) => void;
@@ -56,6 +44,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
     visible: boolean;
     item?: FileItem;
   }>({ visible: false });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getFileIcon = (type: string) => {
     if (type.startsWith('image/')) return <Image className="w-6 h-6" />;
@@ -70,7 +59,6 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   };
 
-  // 计算文件SHA256
   const calculateSHA256 = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const crypto = window.crypto || (window as any).msCrypto;
@@ -158,10 +146,8 @@ interface PresignedResult {
 
   const uploadFileDirectly = async (fileItem: FileItem, file: File, sha256: string) => {
     try {
-      // 获取预签名URL（包含SHA256校验）
       const result = await getPresignedUrl(file, sha256);
       
-      // 检查是否检测到重复文件
       if (!result.success && result.duplicate) {
         setFileList(prev => prev.map(item =>
           item.uid === fileItem.uid ? { 
@@ -179,7 +165,6 @@ interface PresignedResult {
         item.uid === fileItem.uid ? { ...item, status: 'uploading', fileId, presignedUrl, progress: 0 } : item
       ));
 
-      // 直接上传到火山引擎
       const response = await fetch(presignedUrl, {
         method: 'PUT',
         body: file,
@@ -192,10 +177,8 @@ interface PresignedResult {
         throw new Error(`上传失败: ${response.status}`);
       }
 
-      // 获取ETag
       const etag = response.headers.get('ETag');
 
-      // 确认上传完成
       const token = localStorage.getItem('token');
       const confirmResponse = await fetch('/api/presigned/confirm-upload', {
         method: 'POST',
@@ -236,7 +219,6 @@ interface PresignedResult {
       const token = localStorage.getItem('token');
       const parts = Math.ceil(file.size / CHUNK_SIZE);
 
-      // 初始化分片上传（包含SHA256校验）
       const initResponse = await fetch('/api/presigned/multipart/init', {
         method: 'POST',
         headers: {
@@ -256,7 +238,6 @@ interface PresignedResult {
 
       const initData = await initResponse.json();
       
-      // 检查是否检测到重复文件
       if (!initData.success && initData.duplicate) {
         setFileList(prev => prev.map(item =>
           item.uid === fileItem.uid ? { 
@@ -274,7 +255,6 @@ interface PresignedResult {
         item.uid === fileItem.uid ? { ...item, status: 'uploading', fileId, progress: 0 } : item
       ));
 
-      // 上传所有分片
       const partResults = [];
       let uploadedBytes = 0;
 
@@ -310,7 +290,6 @@ interface PresignedResult {
         ));
       }
 
-      // 完成分片上传
       const completeResponse = await fetch('/api/presigned/multipart/complete', {
         method: 'POST',
         headers: {
@@ -346,74 +325,98 @@ interface PresignedResult {
     }
   };
 
-  const handleUpload = useCallback(async (file: File) => {
-    const validation = validateFile(file);
-    if (!validation.valid) {
+  const handleFilesSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of Array.from(files)) {
+      const validation = validateFile(file);
+      if (!validation.valid) {
+        const newItem: FileItem = {
+          uid: Date.now().toString() + Math.random(),
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          status: 'error',
+          progress: 0,
+          error: validation.message,
+        };
+        setFileList(prev => [...prev, newItem]);
+        continue;
+      }
+
       const newItem: FileItem = {
-        uid: Date.now().toString(),
+        uid: Date.now().toString() + Math.random(),
         name: file.name,
         size: file.size,
         type: file.type,
-        status: 'error',
+        status: 'hashing',
         progress: 0,
-        error: validation.message,
       };
+
       setFileList(prev => [...prev, newItem]);
-      return false;
-    }
 
-    const newItem: FileItem = {
-      uid: Date.now().toString(),
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      status: 'hashing',
-      progress: 0,
-    };
+      try {
+        setFileList(prev => prev.map(item =>
+          item.uid === newItem.uid ? { ...item, status: 'hashing' } : item
+        ));
 
-    setFileList(prev => [...prev, newItem]);
+        const sha256 = await calculateSHA256(file);
 
-    try {
-      // 1. 计算SHA256（显示进度）
-      setFileList(prev => prev.map(item =>
-        item.uid === newItem.uid ? { ...item, status: 'hashing' } : item
-      ));
+        setFileList(prev => prev.map(item =>
+          item.uid === newItem.uid ? { ...item, sha256, status: 'checking' } : item
+        ));
 
-      const sha256 = await calculateSHA256(file);
-
-      setFileList(prev => prev.map(item =>
-        item.uid === newItem.uid ? { ...item, sha256, status: 'checking' } : item
-      ));
-
-      // 2. 根据文件大小选择上传方式
-      if (file.size > CHUNK_SIZE) {
-        await uploadLargeFile(newItem, file, sha256);
-      } else {
-        await uploadFileDirectly(newItem, file, sha256);
+        if (file.size > CHUNK_SIZE) {
+          await uploadLargeFile(newItem, file, sha256);
+        } else {
+          await uploadFileDirectly(newItem, file, sha256);
+        }
+      } catch (error) {
+        console.error('上传流程失败:', error);
+        setFileList(prev => prev.map(item =>
+          item.uid === newItem.uid ? { ...item, status: 'error', error: (error as Error).message } : item
+        ));
       }
-    } catch (error) {
-      console.error('上传流程失败:', error);
-      setFileList(prev => prev.map(item =>
-        item.uid === newItem.uid ? { ...item, status: 'error', error: (error as Error).message } : item
-      ));
     }
 
-    return false;
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   }, [category, accessLevel, onUploadComplete]);
 
   const handleRemove = useCallback((uid: string) => {
     setFileList(prev => prev.filter(item => item.uid !== uid));
   }, []);
 
-  const handleRetry = useCallback((uid: string, file: File) => {
+  const handleRetry = useCallback((uid: string) => {
     const item = fileList.find(i => i.uid === uid);
     if (item) {
-      handleUpload(file);
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = category === 'image' ? 'image/jpeg,image/png,image/webp,image/gif' :
+                     category === 'video' ? 'video/mp4,video/quicktime' :
+                     '.zip,.rar,.7z';
+      input.onchange = (e) => {
+        const files = (e.target as HTMLInputElement).files;
+        if (files && files[0]) {
+          const newItem: FileItem = {
+            uid: Date.now().toString() + Math.random(),
+            name: files[0].name,
+            size: files[0].size,
+            type: files[0].type,
+            status: 'hashing',
+            progress: 0,
+          };
+          setFileList(prev => prev.map(i => i.uid === uid ? newItem : i));
+          handleFilesSelected({ target: { files } } as React.ChangeEvent<HTMLInputElement>);
+        }
+      };
+      input.click();
     }
-  }, [fileList, handleUpload]);
+  }, [fileList, category, handleFilesSelected]);
 
   const handleDuplicateConfirm = useCallback((item: FileItem) => {
-    // 用户确认使用已存在的文件
     if (onUploadComplete && item.existingFile) {
       onUploadComplete(item.existingFile.fileId, item.existingFile.originalName);
     }
@@ -463,21 +466,27 @@ interface PresignedResult {
     }
   };
 
+  const handleButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <div className="direct-upload">
-      <Upload
-        beforeUpload={handleUpload}
-        fileList={[]}
-        customRequest={() => {}}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
         accept={category === 'image' ? 'image/jpeg,image/png,image/webp,image/gif' :
                  category === 'video' ? 'video/mp4,video/quicktime' :
                  '.zip,.rar,.7z'}
-      >
-        <button className="upload-btn">
-          <UploadIcon className="w-5 h-5" />
-          选择文件
-        </button>
-      </Upload>
+        onChange={handleFilesSelected}
+        className="hidden"
+      />
+
+      <button className="upload-btn" onClick={handleButtonClick}>
+        <UploadIcon className="w-5 h-5" />
+        选择文件
+      </button>
 
       <div className="upload-list">
         {fileList.map(item => (
@@ -497,22 +506,18 @@ interface PresignedResult {
 
             {item.status === 'uploading' && (
               <div className="upload-progress">
-                <Progress
-                  percent={item.progress}
-                  showInfo={false}
-                  strokeWidth={4}
-                />
+                <div className="progress-bar">
+                  <div className="progress-fill" style={{ width: `${item.progress}%` }}></div>
+                </div>
                 <span className="progress-text">{item.progress}%</span>
               </div>
             )}
 
             {item.status === 'hashing' && (
               <div className="upload-progress">
-                <Progress
-                  percent={0}
-                  showInfo={false}
-                  strokeWidth={4}
-                />
+                <div className="progress-bar">
+                  <div className="progress-fill indeterminate"></div>
+                </div>
                 <span className="progress-text">处理中...</span>
               </div>
             )}
@@ -520,7 +525,7 @@ interface PresignedResult {
             {item.status === 'error' && (
               <div className="error-details">
                 <span className="error-text">{item.error}</span>
-                <button onClick={() => handleRetry(item.uid, new File([''], item.name))} className="retry-btn">
+                <button onClick={() => handleRetry(item.uid)} className="retry-btn">
                   重试
                 </button>
               </div>
@@ -546,35 +551,33 @@ interface PresignedResult {
         ))}
       </div>
 
-      {/* 重复文件确认弹窗 */}
-      <Modal
-        title="文件已存在"
-        visible={duplicateModal.visible}
-        onCancel={() => setDuplicateModal({ visible: false })}
-        footer={[
-          <button key="cancel" onClick={() => setDuplicateModal({ visible: false })}>
-            取消
-          </button>,
-          <button key="confirm" onClick={() => duplicateModal.item && handleDuplicateConfirm(duplicateModal.item)}>
-            确认使用已存在文件
-          </button>,
-        ]}
-      >
-        {duplicateModal.item && (
-          <div className="duplicate-modal-content">
-            <p>检测到相同的文件已存在于服务器：</p>
-            <div className="file-info-card">
-              <FileText className="icon" />
-              <div className="info">
-                <span className="name">{duplicateModal.item.existingFile?.originalName}</span>
-                <span className="size">{getFileSizeText(duplicateModal.item.existingFile?.size || 0)}</span>
-                <span className="upload-time">上传时间：{new Date(duplicateModal.item.existingFile?.uploadedAt).toLocaleString()}</span>
+      <div className={`modal-overlay ${duplicateModal.visible ? 'visible' : ''}`}>
+        <div className="modal-content">
+          <h3 className="modal-title">文件已存在</h3>
+          {duplicateModal.item && (
+            <div className="duplicate-modal-content">
+              <p>检测到相同的文件已存在于服务器：</p>
+              <div className="file-info-card">
+                <FileText className="icon" />
+                <div className="info">
+                  <span className="name">{duplicateModal.item.existingFile?.originalName}</span>
+                  <span className="size">{getFileSizeText(duplicateModal.item.existingFile?.size || 0)}</span>
+                  <span className="upload-time">上传时间：{new Date(duplicateModal.item.existingFile?.uploadedAt).toLocaleString()}</span>
+                </div>
               </div>
+              <p className="tip">是否直接使用已存在的文件，无需重新上传？</p>
             </div>
-            <p className="tip">是否直接使用已存在的文件，无需重新上传？</p>
+          )}
+          <div className="modal-footer">
+            <button onClick={() => setDuplicateModal({ visible: false })} className="modal-btn cancel">
+              取消
+            </button>
+            <button onClick={() => duplicateModal.item && handleDuplicateConfirm(duplicateModal.item)} className="modal-btn confirm">
+              确认使用已存在文件
+            </button>
           </div>
-        )}
-      </Modal>
+        </div>
+      </div>
 
       <style>{`
         .direct-upload {
@@ -678,6 +681,30 @@ interface PresignedResult {
           flex-shrink: 0;
         }
 
+        .progress-bar {
+          flex: 1;
+          height: 6px;
+          background: #e8e8e8;
+          border-radius: 3px;
+          overflow: hidden;
+        }
+
+        .progress-fill {
+          height: 100%;
+          background: #52c41a;
+          transition: width 0.3s;
+        }
+
+        .progress-fill.indeterminate {
+          width: 100%;
+          animation: progress-indeterminate 1.5s infinite;
+        }
+
+        @keyframes progress-indeterminate {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+
         .progress-text {
           font-size: 12px;
           color: #666;
@@ -758,8 +785,44 @@ interface PresignedResult {
           background: #f5f5f5;
         }
 
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          opacity: 0;
+          visibility: hidden;
+          transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        .modal-overlay.visible {
+          opacity: 1;
+          visibility: visible;
+        }
+
+        .modal-content {
+          background: white;
+          border-radius: 12px;
+          padding: 24px;
+          width: 90%;
+          max-width: 400px;
+        }
+
+        .modal-title {
+          font-size: 18px;
+          font-weight: 600;
+          margin-bottom: 16px;
+          color: #333;
+        }
+
         .duplicate-modal-content {
-          padding: 16px 0;
+          padding: 8px 0;
         }
 
         .file-info-card {
@@ -803,6 +866,39 @@ interface PresignedResult {
           margin-top: 12px;
           font-size: 13px;
           color: #666;
+        }
+
+        .modal-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          margin-top: 24px;
+        }
+
+        .modal-btn {
+          padding: 8px 20px;
+          border-radius: 4px;
+          font-size: 14px;
+          cursor: pointer;
+          border: none;
+        }
+
+        .modal-btn.cancel {
+          background: #f5f5f5;
+          color: #666;
+        }
+
+        .modal-btn.cancel:hover {
+          background: #e8e8e8;
+        }
+
+        .modal-btn.confirm {
+          background: #1890ff;
+          color: white;
+        }
+
+        .modal-btn.confirm:hover {
+          background: #40a9ff;
         }
 
         .animate-spin {

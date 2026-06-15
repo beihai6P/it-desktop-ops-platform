@@ -19,7 +19,8 @@
     "iconv-lite": "^0.7.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.0",
-    "multer": "^2.0.0-rc.4"
+    "multer": "^2.0.0-rc.4",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "mongodb-memory-server": "^11.2.0",
