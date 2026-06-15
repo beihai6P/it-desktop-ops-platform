@@ -9,19 +9,21 @@
 
 import { useState, useCallback } from 'react';
 import { Upload, Progress, Modal } from 'antd';
-import { 
-  UploadOutlined, 
-  CheckCircleOutlined, 
-  AlertCircleOutlined, 
-  FileZip, 
-  FileImage, 
-  FileVideo,
-  ClockCircleOutlined,
+import {
+  Upload as UploadIcon,
+  CheckCircle,
+  Circle,
+  FileText,
+  Image,
+  Video,
+  Clock,
   Loader2,
   CloudUpload,
-  AlertTriangleOutlined,
-  RefreshCw
-} from '@ant-design/icons';
+  Info,
+  AlertTriangle,
+  RefreshCw,
+  AlertCircle,
+} from 'lucide-react';
 
 interface FileItem {
   uid: string;
@@ -56,9 +58,9 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
   }>({ visible: false });
 
   const getFileIcon = (type: string) => {
-    if (type.startsWith('image/')) return <FileImage />;
-    if (type.startsWith('video/')) return <FileVideo />;
-    return <FileZip />;
+    if (type.startsWith('image/')) return <Image className="w-6 h-6" />;
+    if (type.startsWith('video/')) return <Video className="w-6 h-6" />;
+    return <FileText className="w-6 h-6" />;
   };
 
   const getFileSizeText = (bytes: number) => {
@@ -118,7 +120,21 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
     return { valid: true, message: '' };
   };
 
-  const getPresignedUrl = async (file: File, sha256: string): Promise<{ fileId: string; presignedUrl: string }> => {
+interface PresignedResult {
+  success: boolean;
+  fileId?: string;
+  presignedUrl?: string;
+  duplicate?: boolean;
+  existingFile?: {
+    fileId: string;
+    originalName: string;
+    size: number;
+    uploadedAt: string;
+  };
+  message?: string;
+}
+
+  const getPresignedUrl = async (file: File, sha256: string): Promise<PresignedResult> => {
     const token = localStorage.getItem('token');
     const response = await fetch('/api/presigned/upload-url', {
       method: 'POST',
@@ -408,19 +424,19 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
   const getStatusIcon = (status: FileItem['status']) => {
     switch (status) {
       case 'pending':
-        return <ClockCircleOutlined className="text-gray-400" />;
+        return <Clock className="w-5 h-5 text-gray-400" />;
       case 'hashing':
-        return <RefreshCw className="text-blue-500 animate-spin" />;
+        return <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />;
       case 'checking':
-        return <Loader2 className="text-yellow-500 animate-spin" />;
+        return <Loader2 className="w-5 h-5 text-yellow-500 animate-spin" />;
       case 'uploading':
-        return <CloudUpload className="text-green-500" />;
+        return <CloudUpload className="w-5 h-5 text-green-500" />;
       case 'done':
-        return <CheckCircleOutlined className="text-green-500" />;
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
       case 'error':
-        return <AlertCircleOutlined className="text-red-500" />;
+        return <AlertCircle className="w-5 h-5 text-red-500" />;
       case 'duplicate':
-        return <AlertTriangleOutlined className="text-yellow-500" />;
+        return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
       default:
         return null;
     }
@@ -458,7 +474,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
                  '.zip,.rar,.7z'}
       >
         <button className="upload-btn">
-          <UploadOutlined />
+          <UploadIcon className="w-5 h-5" />
           选择文件
         </button>
       </Upload>
@@ -494,10 +510,10 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
               <div className="upload-progress">
                 <Progress
                   percent={0}
-                  indeterminate
                   showInfo={false}
                   strokeWidth={4}
                 />
+                <span className="progress-text">处理中...</span>
               </div>
             )}
 
@@ -548,7 +564,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
           <div className="duplicate-modal-content">
             <p>检测到相同的文件已存在于服务器：</p>
             <div className="file-info-card">
-              <FileZip className="icon" />
+              <FileText className="icon" />
               <div className="info">
                 <span className="name">{duplicateModal.item.existingFile?.originalName}</span>
                 <span className="size">{getFileSizeText(duplicateModal.item.existingFile?.size || 0)}</span>
