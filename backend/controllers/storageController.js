@@ -2,41 +2,84 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { pipeline } = require('stream/promises');
+const iconv = require('iconv-lite');
 const { StorageFile, FileChunk, DownloadToken } = require('../models/StorageFile');
+const { getStorageAdapter } = require('../services/storageAdapter');
 const {
-  initStorage,
-  saveFile,
   deleteFile,
-  fileExists,
-  getFileSize,
-  createReadStream,
   calculateMD5,
   calculateSHA256,
   calculateBufferMD5,
-  calculateBufferSHA256,
   getMimeType,
   getExtension,
-  validateFileType,
-  getFileSizeLimit,
-  formatFileSize,
-  getStoragePath,
   parseRangeHeader,
   generateETag,
-  generateDownloadToken,
-  generateSignedUrl,
-  getStorageStats,
-  cleanupTempFiles,
-  cleanupChunks,
-  saveChunk,
-  chunkExists,
-  getUploadedChunks,
-  mergeChunks,
-  CHUNK_SIZE,
-  STORAGE_ROOT
+  CHUNK_SIZE
 } = require('../utils/fileUtils');
 
-// 上传会话存储（生产环境应使用Redis）
-const uploadSessions = new Map();
+// 存储适配器实例（强制使用火山引擎对象存储）
+const storageAdapter = getStorageAdapter();
+
+// 文件类型白名单和大小限制配置
+const FILE_TYPE_CONFIG = {
+  image: {
+    extensions: ['.jpg', '.jpeg', '.png', '.webp', '.gif'],
+    maxSize: 20 * 1024 * 1024, // 20MB
+    friendlySize: '20MB'
+  },
+  video: {
+    extensions: ['.mp4', '.mov'],
+    maxSize: 200 * 1024 * 1024, // 200MB
+    friendlySize: '200MB'
+  },
+  archive: {
+    extensions: ['.zip', '.rar', '.7z'],
+    maxSize: 2 * 1024 * 1024 * 1024, // 2GB
+    friendlySize: '2GB'
+  }
+};
+
+/**
+ * 校验文件类型和大小
+ * @param {string} filename - 文件名
+ * @param {number} fileSize - 文件大小（字节）
+ * @returns {object} { valid: boolean, message: string }
+ */
+const validateFileUpload = (filename, fileSize) => {
+  const ext = path.extname(filename).toLowerCase();
+  
+  // 查找匹配的文件类型
+  let matchedType = null;
+  for (const [type, config] of Object.entries(FILE_TYPE_CONFIG)) {
+    if (config.extensions.includes(ext)) {
+      matchedType = type;
+      break;
+    }
+  }
+  
+  if (!matchedType) {
+    const allowedTypes = Object.values(FILE_TYPE_CONFIG).flatMap(c => c.extensions);
+    return {
+      valid: false,
+      message: `不支持的文件类型 "${ext}"，仅支持：${allowedTypes.join('、')}`
+    };
+  }
+  
+  const config = FILE_TYPE_CONFIG[matchedType];
+  if (fileSize > config.maxSize) {
+    return {
+      valid: false,
+      message: `不好意思嗷~文件太大啦~吃不下哦！ᔦ ° ꒳ ° ᔨ ̖́- （${matchedType === 'image' ? '图片' : matchedType === 'video' ? '视频' : '压缩包'}最大${config.friendlySize}）`
+    };
+  }
+  
+  return {
+    valid: true,
+    message: '校验通过',
+    type: matchedType,
+    config
+  };
+};
 
 // 上传进度存储
 const uploadProgress = new Map();
@@ -46,19 +89,16 @@ const uploadProgress = new Map();
  */
 const initializeStorage = async () => {
   try {
-    await initStorage();
-    console.log('存储系统初始化成功');
-    
-    // 定时清理任务
-    setInterval(async () => {
-      const tempCleaned = await cleanupTempFiles();
-      const chunksCleaned = await cleanupChunks();
-      if (tempCleaned > 0 || chunksCleaned > 0) {
-        console.log(`清理完成: ${tempCleaned}个临时文件, ${chunksCleaned}个分片目录`);
-      }
-    }, 60 * 60 * 1000); // 每小时清理一次
+    // 初始化火山引擎对象存储
+    try {
+      await storageAdapter.init();
+      console.log('✅ 火山引擎对象存储初始化成功');
+    } catch (error) {
+      console.error('⚠️ 火山引擎对象存储初始化失败:', error.message);
+      console.warn('⚠️ 上传功能将不可用，请在火山引擎控制台创建Bucket');
+    }
   } catch (error) {
-    console.error('存储系统初始化失败:', error);
+    console.error('❌ 存储系统初始化失败:', error);
   }
 };
 
@@ -69,6 +109,40 @@ initializeStorage();
  * 上传文件
  * POST /api/storage/upload
  */
+const fixFilenameEncoding = (filename) => {
+  if (!filename) return filename;
+  
+  try {
+    const hasChinese = /[\u4e00-\u9fff]/.test(filename);
+    
+    if (hasChinese) {
+      return filename;
+    }
+    
+    const hasLatin1 = /[\x80-\xff]/.test(filename);
+    
+    if (!hasLatin1) {
+      return filename;
+    }
+    
+    const latin1Buffer = Buffer.from(filename, 'latin1');
+    const gbkDecoded = iconv.decode(latin1Buffer, 'gbk');
+    
+    if (!gbkDecoded.includes('\ufffd')) {
+      const hasGbkChinese = /[\u4e00-\u9fff]/.test(gbkDecoded);
+      if (hasGbkChinese) {
+        console.log(`[文件名修复] Latin1->GBK成功: ${filename} -> ${gbkDecoded}`);
+        return gbkDecoded;
+      }
+    }
+    
+  } catch (e) {
+    console.warn(`[文件名编码修复失败]: ${e.message}`);
+  }
+  
+  return filename;
+};
+
 const uploadFile = async (req, res) => {
   try {
     if (!req.file) {
@@ -76,6 +150,10 @@ const uploadFile = async (req, res) => {
     }
 
     const file = req.file;
+    
+    const originalFilename = fixFilenameEncoding(file.originalname);
+    console.log(`[上传] 原始文件名: ${file.originalname}, 修复后: ${originalFilename}`);
+
     const {
       category = 'other',
       toolId,
@@ -92,24 +170,32 @@ const uploadFile = async (req, res) => {
       expiresAt
     } = req.body;
 
-    // 验证文件类型
-    if (!validateFileType(file.originalname, category)) {
-      // 删除临时文件
+    // 1. 校验请求头中的文件大小（第一次校验）
+    const contentLength = req.headers['content-length'] ? parseInt(req.headers['content-length'], 10) : 0;
+    
+    // 获取文件的实际大小
+    const actualSize = file.size;
+    
+    console.log(`[上传校验] 请求头大小: ${contentLength}, 实际文件大小: ${actualSize}`);
+    
+    // 2. 二次校验：请求头大小与实际文件大小对比（防止绕过）
+    if (contentLength > 0 && Math.abs(contentLength - actualSize) > 1024) {
       await deleteFile(file.path);
       return res.status(400).json({ 
-        message: '不支持的文件类型',
-        allowedTypes: Object.values(require('../utils/fileUtils').ALLOWED_EXTENSIONS[category] || []).flat()
+        message: '文件大小校验失败，请求头与实际文件大小不一致' 
       });
     }
-
-    // 验证文件大小
-    const sizeLimit = getFileSizeLimit(category);
-    if (file.size > sizeLimit) {
+    
+    // 3. 校验文件类型和大小（白名单校验）
+    const validationResult = validateFileUpload(originalFilename, actualSize);
+    if (!validationResult.valid) {
       await deleteFile(file.path);
-      return res.status(413).json({ 
-        message: `文件大小超过限制（最大 ${formatFileSize(sizeLimit)}）` 
+      return res.status(400).json({ 
+        message: validationResult.message 
       });
     }
+    
+    console.log(`[上传校验] 文件类型: ${validationResult.type}, 大小: ${actualSize}字节, 限制: ${validationResult.config.friendlySize}`);
 
     // 计算文件哈希
     const md5Hash = await calculateMD5(file.path);
@@ -132,29 +218,54 @@ const uploadFile = async (req, res) => {
     // 生成文件信息
     const fileId = StorageFile.generateFileId();
     const storageName = StorageFile.generateStorageName(file.originalname);
-    const storagePath = getStoragePath(category, storageName);
-
-    // 移动文件到存储目录（使用流式处理避免大文件OOM）
-    const readStream = fs.createReadStream(file.path);
-    const writeStream = fs.createWriteStream(storagePath);
-    await pipeline(readStream, writeStream);
+    
+    // 构造存储对象键
+    const objectKey = `${validationResult.type}/${storageName}`;
+    
+    // 读取文件并上传到火山引擎对象存储
+    const fileBuffer = await fs.promises.readFile(file.path);
+    
+    // 三次校验：读取后再次校验大小（防止篡改）
+    if (fileBuffer.length !== actualSize) {
+      await deleteFile(file.path);
+      return res.status(400).json({ 
+        message: '文件内容校验失败，文件可能被篡改' 
+      });
+    }
+    
+    console.log(`[上传] 开始上传到火山引擎对象存储, 对象键: ${objectKey}`);
+    
+    // 上传到火山引擎对象存储（在调用之前已完成所有校验）
+    await storageAdapter.putObject(objectKey, fileBuffer, {
+      contentType: getMimeType(file.originalname),
+      contentLength: file.size,
+    });
+    
+    console.log(`[上传] 火山引擎对象存储上传成功`);
+    
+    // 删除临时文件
     await deleteFile(file.path);
+
+    // 获取存储URL
+    const storageUrl = storageAdapter.getObjectUrl(objectKey);
 
     // 创建文件记录
     const storageFile = await StorageFile.create({
       fileId,
-      originalName: file.originalname,
+      originalName: originalFilename,
       storageName,
-      extension: getExtension(file.originalname),
-      mimeType: getMimeType(file.originalname),
+      extension: getExtension(originalFilename),
+      mimeType: getMimeType(originalFilename),
       size: file.size,
       hash: {
         md5: md5Hash,
         sha256: sha256Hash
       },
-      storagePath,
+      storagePath: objectKey,
+      storageType: 'volcengine',
+      storageUrl,
       toolId: toolId || null,
-      category,
+      category: validationResult.type,
       accessLevel,
       allowedRoles: allowedRoles ? allowedRoles.split(',').map(r => r.trim()) : [],
       allowedUsers: allowedUsers ? allowedUsers.split(',').map(u => u.trim()) : [],
@@ -181,6 +292,8 @@ const uploadFile = async (req, res) => {
         category: storageFile.category,
         accessLevel: storageFile.accessLevel,
         uploadedAt: storageFile.uploadedAt,
+        storageType: 'volcengine',
+        storageUrl,
         hash: {
           md5: storageFile.hash.md5,
           sha256: storageFile.hash.sha256
@@ -189,6 +302,14 @@ const uploadFile = async (req, res) => {
     });
   } catch (error) {
     console.error('文件上传错误:', error);
+    // 清理临时文件
+    if (req.file && req.file.path) {
+      try {
+        await deleteFile(req.file.path);
+      } catch (e) {
+        console.error('清理临时文件失败:', e);
+      }
+    }
     res.status(500).json({ message: '文件上传失败', error: error.message });
   }
 };
@@ -213,21 +334,15 @@ const initMultipartUpload = async (req, res) => {
       return res.status(400).json({ message: '缺少文件名或文件大小' });
     }
 
-    // 验证文件类型
-    if (!validateFileType(filename, category)) {
+    // 校验文件类型和大小（白名单校验）
+    const validationResult = validateFileUpload(filename, fileSize);
+    if (!validationResult.valid) {
       return res.status(400).json({ 
-        message: '不支持的文件类型',
-        extension: getExtension(filename)
+        message: validationResult.message 
       });
     }
 
-    // 验证文件大小
-    const sizeLimit = getFileSizeLimit(category);
-    if (fileSize > sizeLimit) {
-      return res.status(413).json({ 
-        message: `文件大小超过限制（最大 ${formatFileSize(sizeLimit)}）` 
-      });
-    }
+    console.log(`[分片上传初始化] 文件类型: ${validationResult.type}, 大小: ${fileSize}字节, 限制: ${validationResult.config.friendlySize}`);
 
     // 生成上传ID
     const uploadId = crypto.randomBytes(16).toString('hex');
@@ -238,7 +353,7 @@ const initMultipartUpload = async (req, res) => {
     uploadSessions.set(uploadId, {
       filename,
       fileSize,
-      category,
+      category: validationResult.type,
       toolId,
       description,
       accessLevel,
@@ -247,7 +362,8 @@ const initMultipartUpload = async (req, res) => {
       uploadedChunks: [],
       userId: req.user._id,
       createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24小时过期
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24小时过期
+      uploadParts: [] // 存储已上传的分片信息（用于合并）
     });
 
     // 初始化进度
@@ -311,8 +427,34 @@ const uploadChunk = async (req, res) => {
       });
     }
 
-    // 保存分片
-    await saveChunk(uploadId, parseInt(chunkIndex, 10), req.file.buffer);
+    // 如果还没有初始化火山引擎分片上传，先初始化
+    if (!session.uploadIdVolc) {
+      const storageName = StorageFile.generateStorageName(session.filename);
+      const objectKey = `${session.category}/${storageName}`;
+      
+      const initResult = await storageAdapter.initMultipartUpload(objectKey, {
+        contentType: getMimeType(session.filename)
+      });
+      
+      session.uploadIdVolc = initResult.uploadId;
+      session.objectKey = objectKey;
+      console.log(`[分片上传] 初始化火山引擎分片上传成功, uploadId: ${session.uploadIdVolc}`);
+    }
+
+    // 上传分片到火山引擎对象存储
+    const partNumber = parseInt(chunkIndex, 10) + 1; // 火山引擎分片编号从1开始
+    const uploadResult = await storageAdapter.uploadPart(
+      session.objectKey,
+      partNumber,
+      session.uploadIdVolc,
+      req.file.buffer
+    );
+
+    // 记录分片信息
+    session.uploadParts.push({
+      partNumber,
+      etag: uploadResult.etag
+    });
 
     // 更新上传进度
     const progress = uploadProgress.get(uploadId);
@@ -386,32 +528,45 @@ const completeMultipartUpload = async (req, res) => {
     }
 
     // 检查所有分片是否已上传
-    const uploadedChunks = await getUploadedChunks(uploadId);
-    if (uploadedChunks.length !== session.totalChunks) {
+    if (session.uploadedChunks.length !== session.totalChunks) {
       return res.status(400).json({ 
         message: '分片未完全上传',
         expected: session.totalChunks,
-        uploaded: uploadedChunks.length,
-        missingChunks: Array.from({ length: session.totalChunks }, (_, i) => i).filter(i => !uploadedChunks.includes(i))
+        uploaded: session.uploadedChunks.length,
+        missingChunks: Array.from({ length: session.totalChunks }, (_, i) => i).filter(i => !session.uploadedChunks.includes(i))
       });
     }
 
-    // 生成文件信息
-    const fileId = StorageFile.generateFileId();
-    const storageName = StorageFile.generateStorageName(session.filename);
-    const storagePath = getStoragePath(session.category, storageName);
+    // 检查是否有火山引擎分片上传ID
+    if (!session.uploadIdVolc || !session.objectKey) {
+      return res.status(500).json({ message: '分片上传未正确初始化' });
+    }
 
-    // 合并分片
-    await mergeChunks(uploadId, session.totalChunks, storagePath);
+    console.log(`[分片上传完成] 合并分片, uploadId: ${session.uploadIdVolc}, objectKey: ${session.objectKey}`);
 
-    // 验证文件哈希
-    const actualMd5 = await calculateMD5(storagePath);
-    const actualSha256 = await calculateSHA256(storagePath);
-    const actualSize = await getFileSize(storagePath);
+    // 按分片编号排序
+    const sortedParts = session.uploadParts.sort((a, b) => a.partNumber - b.partNumber);
+
+    // 合并分片（在火山引擎对象存储中）
+    await storageAdapter.completeMultipartUpload(
+      session.objectKey,
+      session.uploadIdVolc,
+      sortedParts
+    );
+
+    console.log(`[分片上传完成] 火山引擎对象存储合并成功`);
+
+    // 获取文件信息
+    const fileInfo = await storageAdapter.getObjectInfo(session.objectKey);
+    if (!fileInfo) {
+      return res.status(500).json({ message: '无法获取上传后的文件信息' });
+    }
+
+    const actualSize = fileInfo.contentLength;
 
     // 验证文件大小
     if (actualSize !== session.fileSize) {
-      await deleteFile(storagePath);
+      await storageAdapter.deleteObject(session.objectKey);
       return res.status(400).json({ 
         message: '文件大小不匹配',
         expected: session.fileSize,
@@ -419,31 +574,9 @@ const completeMultipartUpload = async (req, res) => {
       });
     }
 
-    // 可选：验证整体文件哈希
-    if (fileHash && fileHash !== actualSha256) {
-      await deleteFile(storagePath);
-      return res.status(400).json({ 
-        message: '文件哈希校验失败',
-        expected: fileHash,
-        actual: actualSha256
-      });
-    }
-
-    // 检查是否已存在相同文件
-    const existingFile = await StorageFile.findOne({ 'hash.sha256': actualSha256, status: 'active' });
-    if (existingFile) {
-      await deleteFile(storagePath);
-      uploadSessions.delete(uploadId);
-      uploadProgress.delete(uploadId);
-      return res.status(409).json({ 
-        message: '文件已存在',
-        existingFile: {
-          fileId: existingFile.fileId,
-          originalName: existingFile.originalName,
-          size: existingFile.size
-        }
-      });
-    }
+    // 生成文件信息
+    const fileId = StorageFile.generateFileId();
+    const storageName = StorageFile.generateStorageName(session.filename);
 
     // 创建文件记录
     const storageFile = await StorageFile.create({
@@ -454,24 +587,35 @@ const completeMultipartUpload = async (req, res) => {
       mimeType: getMimeType(session.filename),
       size: actualSize,
       hash: {
-        md5: actualMd5,
-        sha256: actualSha256
+        md5: '', // 分片上传暂不计算MD5
+        sha256: '' // 分片上传暂不计算SHA256
       },
-      storagePath,
+      storagePath: session.objectKey,
+      storageType: 'volcengine',
+      storageUrl: storageAdapter.getObjectUrl(session.objectKey),
       toolId: session.toolId || null,
       category: session.category,
       accessLevel: session.accessLevel,
-      uploadedBy: session.userId,
+      allowedRoles: [],
+      allowedUsers: [],
+      uploadedBy: req.user._id,
       metadata: {
-        description: session.description
-      }
+        description: session.description,
+        tags: []
+      },
+      enableHotlinkProtection: false,
+      allowedReferers: [],
+      ipWhitelist: [],
+      ipBlacklist: [],
+      downloadRateLimit: 0,
+      expiresAt: null
     });
 
     // 清理上传会话
     uploadSessions.delete(uploadId);
     uploadProgress.delete(uploadId);
 
-    res.json({
+    res.status(201).json({
       message: '文件上传成功',
       file: {
         fileId: storageFile.fileId,
@@ -481,18 +625,25 @@ const completeMultipartUpload = async (req, res) => {
         category: storageFile.category,
         accessLevel: storageFile.accessLevel,
         uploadedAt: storageFile.uploadedAt,
-        hash: {
-          md5: storageFile.hash.md5,
-          sha256: storageFile.hash.sha256
-        }
+        storageType: 'volcengine'
       }
     });
   } catch (error) {
     console.error('完成分片上传错误:', error);
+    // 清理资源
+    const session = uploadSessions.get(uploadId);
+    if (session && session.uploadIdVolc && session.objectKey) {
+      try {
+        await storageAdapter.abortMultipartUpload(session.objectKey, session.uploadIdVolc);
+      } catch (e) {
+        console.error('清理分片上传会话失败:', e);
+      }
+    }
+    uploadSessions.delete(uploadId);
+    uploadProgress.delete(uploadId);
     res.status(500).json({ message: '完成分片上传失败', error: error.message });
   }
 };
-
 /**
  * 取消分片上传
  * DELETE /api/storage/multipart/:uploadId
@@ -510,12 +661,15 @@ const abortMultipartUpload = async (req, res) => {
       return res.status(403).json({ message: '无权取消此上传会话' });
     }
 
-    // 清理分片
-    const chunkDir = path.join(STORAGE_ROOT, 'chunks', uploadId);
-    try {
-      await fs.promises.rm(chunkDir, { recursive: true, force: true });
-    } catch {
-      // 忽略清理错误
+    // 如果有火山引擎分片上传ID，取消远程上传
+    if (session.uploadIdVolc && session.objectKey) {
+      try {
+        await storageAdapter.abortMultipartUpload(session.objectKey, session.uploadIdVolc);
+        console.log(`[取消分片上传] 已取消火山引擎分片上传, uploadId: ${session.uploadIdVolc}`);
+      } catch (error) {
+        console.error('取消火山引擎分片上传失败:', error);
+        // 忽略错误，继续清理本地会话
+      }
     }
 
     // 删除会话
@@ -536,13 +690,15 @@ const abortMultipartUpload = async (req, res) => {
 const downloadFile = async (req, res) => {
   try {
     const file = req.storageFile;
+    const objectKey = file.storagePath; // 火山引擎模式下，storagePath是objectKey
 
-    // 检查文件是否存在
-    if (!await fileExists(file.storagePath)) {
+    // 通过存储适配器获取文件信息
+    const fileInfo = await storageAdapter.getObjectInfo(objectKey);
+    if (!fileInfo) {
       return res.status(404).json({ message: '文件不存在' });
     }
 
-    const fileSize = await getFileSize(file.storagePath);
+    const fileSize = fileInfo.contentLength;
     const rangeHeader = req.headers.range;
 
     // 处理Range请求（断点续传）
@@ -562,24 +718,28 @@ const downloadFile = async (req, res) => {
         res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
         res.setHeader('Content-Length', chunkSize);
         res.setHeader('Content-Type', file.mimeType);
-        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
+        
+        // 处理中文文件名编码（RFC 5987标准）
+        const encodedFilename = encodeURIComponent(file.originalName);
+        const asciiFilename = file.originalName.replace(/[^\x00-\x7F]/g, '_').replace(/"/g, '\\"');
+        
+        res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
         res.setHeader('ETag', generateETag(file.hash.sha256, file.size, file.updatedAt));
         res.setHeader('Accept-Ranges', 'bytes');
         res.setHeader('Cache-Control', 'public, max-age=3600');
         res.setHeader('Last-Modified', file.updatedAt.toUTCString());
 
-        const stream = createReadStream(file.storagePath, { start, end });
-        stream.pipe(res);
+        const result = await storageAdapter.getObjectStream(objectKey, { start, end });
+        result.stream.pipe(res);
 
-        stream.on('error', (error) => {
+        result.stream.on('error', (error) => {
           console.error('文件流错误:', error);
           if (!res.headersSent) {
             res.status(500).json({ message: '文件读取失败' });
           }
         });
 
-        stream.on('end', () => {
-          // 更新下载统计（仅在流成功结束时）
+        result.stream.on('end', () => {
           file.incrementDownload(chunkSize);
         });
 
@@ -594,14 +754,19 @@ const downloadFile = async (req, res) => {
       res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
       res.setHeader('Content-Length', chunkSize);
       res.setHeader('Content-Type', file.mimeType);
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
+      
+      // 处理中文文件名编码（RFC 5987标准）
+      const encodedFilename = encodeURIComponent(file.originalName);
+      const asciiFilename = file.originalName.replace(/[^\x00-\x7F]/g, '_').replace(/"/g, '\\"');
+      
+      res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
       res.setHeader('ETag', generateETag(file.hash.sha256, file.size, file.updatedAt));
       res.setHeader('Accept-Ranges', 'bytes');
 
-      const stream = createReadStream(file.storagePath, { start, end });
-      stream.pipe(res);
+      const result = await storageAdapter.getObjectStream(objectKey, { start, end });
+      result.stream.pipe(res);
 
-      stream.on('end', () => {
+      result.stream.on('end', () => {
         file.incrementDownload(chunkSize);
       });
 
@@ -610,7 +775,14 @@ const downloadFile = async (req, res) => {
 
     // 完整文件下载
     res.setHeader('Content-Type', file.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
+    
+    // 处理中文文件名编码（RFC 5987标准）
+    const encodedFilename = encodeURIComponent(file.originalName);
+    // 创建ASCII备用文件名（去掉中文等特殊字符）
+    const asciiFilename = file.originalName.replace(/[^\x00-\x7F]/g, '_');
+    
+    // 设置Content-Disposition，同时支持filename*（UTF-8）和filename（ASCII备用）
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
     res.setHeader('Content-Length', fileSize);
     res.setHeader('ETag', generateETag(file.hash.sha256, file.size, file.updatedAt));
     res.setHeader('Accept-Ranges', 'bytes');
@@ -633,18 +805,17 @@ const downloadFile = async (req, res) => {
       }
     }
 
-    const stream = createReadStream(file.storagePath);
-    stream.pipe(res);
+    const result = await storageAdapter.getObjectStream(objectKey);
+    result.stream.pipe(res);
 
-    stream.on('error', (error) => {
+    result.stream.on('error', (error) => {
       console.error('文件流错误:', error);
       if (!res.headersSent) {
         res.status(500).json({ message: '文件读取失败' });
       }
     });
 
-    stream.on('end', () => {
-      // 更新下载统计（仅在流成功结束时）
+    result.stream.on('end', () => {
       file.incrementDownload(fileSize);
     });
   } catch (error) {
@@ -1039,6 +1210,49 @@ const getStats = async (req, res) => {
 };
 
 /**
+ * 修复文件名编码
+ * POST /api/storage/fix-filenames
+ */
+const fixFilenames = async (req, res) => {
+  try {
+    const files = await StorageFile.find({ status: 'active' });
+    let fixedCount = 0;
+    let skippedCount = 0;
+    const fixedFiles = [];
+
+    for (const file of files) {
+      const originalName = file.originalName;
+      const fixedName = fixFilenameEncoding(originalName);
+
+      if (fixedName !== originalName) {
+        console.log(`[文件名修复] ${originalName} -> ${fixedName}`);
+        file.originalName = fixedName;
+        await file.save();
+        fixedCount++;
+        fixedFiles.push({
+          fileId: file.fileId,
+          original: originalName,
+          fixed: fixedName
+        });
+      } else {
+        skippedCount++;
+      }
+    }
+
+    res.json({
+      message: '文件名修复完成',
+      fixedCount,
+      skippedCount,
+      totalFiles: files.length,
+      fixedFiles
+    });
+  } catch (error) {
+    console.error('修复文件名错误:', error);
+    res.status(500).json({ message: '修复文件名失败', error: error.message });
+  }
+};
+
+/**
  * 检查分片是否存在
  * GET /api/storage/multipart/check/:uploadId/:chunkIndex
  */
@@ -1115,6 +1329,7 @@ module.exports = {
   downloadWithToken,
   getSignedUrl,
   getStats,
+  fixFilenames,
   checkChunk,
   checkChunksBatch
 };

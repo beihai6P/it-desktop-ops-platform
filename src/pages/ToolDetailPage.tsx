@@ -65,13 +65,28 @@ export default function ToolDetailPage() {
       let filename = `${tool.name}`;
       
       if (contentDisposition) {
-        // 支持 filename*=UTF-8'' 格式
-        const matchUtf8 = contentDisposition.match(/filename\*=UTF-8''(.+?)(?:;|$)/);
+        console.log('Content-Disposition原始值:', contentDisposition);
+        
+        // 支持 RFC 5987 格式: filename*=UTF-8''encoded_filename
+        const utf8Regex = /filename\*=UTF-8''([^;]+)/i;
+        const matchUtf8 = contentDisposition.match(utf8Regex);
+        
+        // 支持普通格式: filename="name" 或 filename=name
         const matchIso = contentDisposition.match(/filename="([^"]+)"/);
-        const matchSimple = contentDisposition.match(/filename=([^;\r\n]+)/);
+        const matchSimple = contentDisposition.match(/filename=([^;\r\n "]+)/);
+        
+        console.log('UTF-8匹配结果:', matchUtf8);
+        console.log('ISO匹配结果:', matchIso);
+        console.log('简单匹配结果:', matchSimple);
         
         if (matchUtf8 && matchUtf8[1]) {
-          filename = decodeURIComponent(matchUtf8[1]);
+          try {
+            const decoded = decodeURIComponent(matchUtf8[1]);
+            console.log('UTF-8解码结果:', decoded);
+            filename = decoded;
+          } catch (e) {
+            console.error('URL解码失败:', e);
+          }
         } else if (matchIso && matchIso[1]) {
           filename = matchIso[1];
         } else if (matchSimple && matchSimple[1]) {

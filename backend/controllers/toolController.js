@@ -1,16 +1,16 @@
 const Tool = require('../models/Tool');
 const { StorageFile } = require('../models/StorageFile');
 const { validationResult } = require('express-validator');
+const { getStorageAdapter } = require('../services/storageAdapter');
 const {
-  fileExists,
-  getFileSize,
-  createReadStream,
   parseRangeHeader,
   generateETag,
   formatFileSize,
-  getMimeType,
-  STORAGE_ROOT
+  getMimeType
 } = require('../utils/fileUtils');
+
+// 存储适配器（强制使用火山引擎对象存储）
+const storageAdapter = getStorageAdapter();
 
 const generateToolId = () => {
   return 'TOOL-' + Date.now().toString(36).toUpperCase();
@@ -190,17 +190,17 @@ const downloadTool = async (req, res) => {
       console.log(`[${requestId}]   - storagePath: ${storageFile.storagePath}`);
       console.log(`[${requestId}]   - status: ${storageFile.status}`);
       
-      console.log(`[${requestId}] 检查文件是否存在...`);
-      const exists = await fileExists(storageFile.storagePath);
-      console.log(`[${requestId}] 文件存在: ${exists ? '✅ 是' : '❌ 否'}`);
+      // 通过火山引擎对象存储获取文件信息
+      console.log(`[${requestId}] 通过火山引擎对象存储获取文件信息...`);
+      const fileInfo = await storageAdapter.getObjectInfo(storageFile.storagePath);
       
-      if (!exists) {
-        console.log(`[${requestId}] ❌ 物理文件不存在`);
+      if (!fileInfo) {
+        console.log(`[${requestId}] ❌ 文件不存在于火山引擎对象存储`);
         return res.status(404).json({ message: '工具文件不存在或已被删除' });
       }
       
-      // 获取文件大小
-      const fileSize = await getFileSize(storageFile.storagePath);
+      const fileSize = fileInfo.contentLength;
+      console.log(`[${requestId}] 文件存在: ✅ 是`);
       console.log(`[${requestId}] 实际文件大小: ${fileSize} 字节`);
       
       // 更新工具下载计数
@@ -230,7 +230,13 @@ const downloadTool = async (req, res) => {
         res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
         res.setHeader('Content-Length', chunkSize);
         res.setHeader('Content-Type', storageFile.mimeType);
-        res.setHeader('Content-Disposition', `attachment; filename="${storageFile.originalName}"; filename*=UTF-8''${encodeURIComponent(storageFile.originalName)}`);
+        
+        // 处理中文文件名编码（优先使用工具名称）
+        const downloadFilename = tool.name + (storageFile.extension ? '.' + storageFile.extension : '');
+        const encodedFilename = encodeURIComponent(downloadFilename);
+        const asciiFilename = downloadFilename.replace(/[^\x00-\x7F]/g, '_').replace(/"/g, '\\"');
+        
+        res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
         res.setHeader('ETag', generateETag(storageFile.hash.sha256, storageFile.size, storageFile.updatedAt));
         res.setHeader('Accept-Ranges', 'bytes');
         res.setHeader('Cache-Control', 'public, max-age=3600');
@@ -241,17 +247,18 @@ const downloadTool = async (req, res) => {
         console.log(`[${requestId}]   - Content-Disposition: attachment; filename="${storageFile.originalName}"`);
         console.log(`[${requestId}]   - Content-Length: ${chunkSize}`);
 
-        const stream = createReadStream(storageFile.storagePath, { start, end });
-        stream.pipe(res);
+        // 使用火山引擎对象存储获取文件流
+        const result = await storageAdapter.getObjectStream(storageFile.storagePath, { start, end });
+        result.stream.pipe(res);
 
-        stream.on('error', (error) => {
+        result.stream.on('error', (error) => {
           console.error(`[${requestId}] ❌ 文件流错误:`, error);
           if (!res.headersSent) {
             res.status(500).json({ message: '文件读取失败' });
           }
         });
 
-        stream.on('end', () => {
+        result.stream.on('end', () => {
           storageFile.incrementDownload(chunkSize);
           const endTime = Date.now();
           console.log(`[${requestId}] ✅ Range下载完成`);
@@ -265,7 +272,13 @@ const downloadTool = async (req, res) => {
       // 完整文件下载
       console.log(`[${requestId}] 设置完整文件下载响应头...`);
       res.setHeader('Content-Type', storageFile.mimeType);
-      res.setHeader('Content-Disposition', `attachment; filename="${storageFile.originalName}"; filename*=UTF-8''${encodeURIComponent(storageFile.originalName)}`);
+      
+      // 处理中文文件名编码（优先使用工具名称）
+      const downloadFilename = tool.name + (storageFile.extension ? '.' + storageFile.extension : '');
+      const encodedFilename = encodeURIComponent(downloadFilename);
+      const asciiFilename = downloadFilename.replace(/[^\x00-\x7F]/g, '_').replace(/"/g, '\\"');
+      
+      res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
       res.setHeader('Content-Length', fileSize);
       res.setHeader('ETag', generateETag(storageFile.hash.sha256, storageFile.size, storageFile.updatedAt));
       res.setHeader('Accept-Ranges', 'bytes');
@@ -274,7 +287,7 @@ const downloadTool = async (req, res) => {
       
       console.log(`[${requestId}] 响应头设置完成 (完整下载)`);
       console.log(`[${requestId}]   - Content-Type: ${storageFile.mimeType}`);
-      console.log(`[${requestId}]   - Content-Disposition: attachment; filename="${storageFile.originalName}"`);
+      console.log(`[${requestId}]   - Content-Disposition: attachment; filename="${downloadFilename}"`);
       console.log(`[${requestId}]   - Content-Length: ${fileSize}`);
       console.log(`[${requestId}]   - Accept-Ranges: bytes`);
 
@@ -286,18 +299,20 @@ const downloadTool = async (req, res) => {
         return res.status(304).end();
       }
 
-      console.log(`[${requestId}] 开始传输文件流...`);
-      const stream = createReadStream(storageFile.storagePath);
-      stream.pipe(res);
+      console.log(`[${requestId}] 开始从火山引擎对象存储传输文件流...`);
+      
+      // 使用火山引擎对象存储获取文件流
+      const result = await storageAdapter.getObjectStream(storageFile.storagePath);
+      result.stream.pipe(res);
 
-      stream.on('error', (error) => {
+      result.stream.on('error', (error) => {
         console.error(`[${requestId}] ❌ 文件流错误:`, error);
         if (!res.headersSent) {
           res.status(500).json({ message: '文件读取失败' });
         }
       });
 
-      stream.on('end', () => {
+      result.stream.on('end', () => {
         storageFile.incrementDownload(fileSize);
         const endTime = Date.now();
         console.log(`[${requestId}] ✅ 完整下载完成`);

@@ -182,7 +182,7 @@ const StorageFileSchema = new mongoose.Schema({
   // 文件分类
   category: {
     type: String,
-    enum: ['tool', 'document', 'image', 'video', 'other'],
+    enum: ['tool', 'document', 'image', 'video', 'archive', 'other'],
     default: 'other'
   },
   

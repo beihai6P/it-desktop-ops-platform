@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 
-const adminPassword = 'admin123'; // 管理员默认密码
+const adminPassword = 'beihaibei8..'; // 管理员默认密码
 
 async function seedData() {
   console.log('Seeding initial data...');
@@ -10,8 +10,15 @@ async function seedData() {
     const Role = require('../models/Role');
     const Permission = require('../models/Permission');
     
-    // 检查是否已有管理员用户
-    const existingAdmin = await User.findOne({ role: 'admin' });
+    // 检查是否已有指定的管理员用户
+    const existingAdmin = await User.findOne({ email: '877628367@qq.com' });
+    const oldAdmin = await User.findOne({ email: 'admin@example.com' });
+    
+    // 如果存在旧账号，删除它
+    if (oldAdmin) {
+      console.log('Removing old admin account...');
+      await User.deleteOne({ email: 'admin@example.com' });
+    }
     
     if (!existingAdmin) {
       console.log('Creating admin user...');
@@ -67,16 +74,6 @@ async function seedData() {
       });
       
       // 创建管理员用户
-      await User.create({
-        name: '管理员',
-        email: 'admin@example.com',
-        password: adminPassword,
-        role: 'admin',
-        isAdmin: true,
-        status: 'active'
-      });
-      
-      // 创建用户提供的管理员账号
       await User.create({
         name: '厉书书',
         email: '877628367@qq.com',

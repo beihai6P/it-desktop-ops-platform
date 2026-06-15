@@ -18,6 +18,7 @@ const {
   downloadWithToken,
   getSignedUrl,
   getStats,
+  fixFilenames,
   checkChunk,
   checkChunksBatch
 } = require('../controllers/storageController');
@@ -202,6 +203,13 @@ router.get('/stats',
   storageAuth,
   adminOnly,
   getStats
+);
+
+// 修复文件名编码
+router.post('/fix-filenames',
+  storageAuth,
+  adminOnly,
+  fixFilenames
 );
 
 // ==================== 工具关联路由 ====================
