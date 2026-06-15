@@ -4,7 +4,7 @@ import { Search, Filter, Plus, TrendingUp, Download, Flame } from 'lucide-react'
 import type { Tool } from '@/types';
 import ToolCard from '@/components/ToolCard';
 import ToolUpload from '@/components/ToolUpload';
-import { toolAPI, storageAPI } from '@/services/api';
+import { toolAPI } from '@/services/api';
 
 type SortType = 'downloads' | 'views' | 'stars' | 'updated';
 
@@ -64,43 +64,10 @@ export default function Tools() {
 
   const handleUpload = async (data: FormData) => {
     try {
-      const file = data.get('file') as File;
-      
-      if (!file) {
-        throw new Error('请选择要上传的文件');
-      }
-
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-      uploadFormData.append('category', 'tool');
-      uploadFormData.append('accessLevel', 'public');
-
-      const uploadResponse = await storageAPI.upload(uploadFormData);
-      const fileId = uploadResponse.data.file.fileId;
-
-      const typeValue = data.get('type') as string;
-      const toolData = {
-        name: data.get('name') as string,
-        description: data.get('description') as string,
-        longDescription: data.get('longDescription') as string,
-        category: data.get('category') as string,
-        type: (typeValue === 'script' || typeValue === 'plugin' ? typeValue : 'tool') as 'script' | 'tool' | 'plugin',
-        tags: (data.get('tags') as string).split(',').map((t: string) => t.trim()).filter(Boolean),
-        version: data.get('version') as string,
-        license: data.get('license') as string,
-        compatibility: (data.get('compatibility') as string).split(',').map((t: string) => t.trim()).filter(Boolean),
-        storageFileId: fileId,
-        fileSize: '',
-        downloadUrl: '',
-      };
-      const response = await toolAPI.create(toolData);
-      setTools((prev) => [response.data.tool as Tool, ...prev]);
-      alert('工具上传成功！');
+      loadTools();
     } catch (error) {
-      console.error('Failed to upload tool:', error);
-      alert('上传失败，请稍后重试');
+      console.error('Failed to reload tools:', error);
     }
-    setShowUploadModal(false);
   };
 
   return (

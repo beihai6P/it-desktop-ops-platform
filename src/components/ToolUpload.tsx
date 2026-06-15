@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { X, Upload, FileText, Image, Check } from 'lucide-react';
+import { X, Check, Image } from 'lucide-react';
+import DirectUpload from './DirectUpload';
+import { toolAPI } from '@/services/api';
 
 interface ToolUploadProps {
   onClose: () => void;
@@ -15,55 +17,74 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
     type: 'script' as 'script' | 'tool' | 'plugin',
     version: 'v1.0.0',
     license: 'MIT',
-    file: null as File | null,
-    screenshots: [] as File[],
     tags: '',
     compatibility: '',
   });
+  const [storageFileId, setStorageFileId] = useState<string>('');
+  const [fileUploaded, setFileUploaded] = useState(false);
+  const [screenshots, setScreenshots] = useState<File[]>([]);
 
-  const handleChange = (field: string, value: string | File | File[]) => {
+  const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleChange('file', e.target.files[0]);
-    }
   };
 
   const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
-      handleChange('screenshots', [...formData.screenshots, ...newFiles]);
+      setScreenshots((prev) => [...prev, ...newFiles]);
     }
   };
 
   const removeScreenshot = (index: number) => {
-    const newScreenshots = [...formData.screenshots];
+    const newScreenshots = [...screenshots];
     newScreenshots.splice(index, 1);
-    handleChange('screenshots', newScreenshots);
+    setScreenshots(newScreenshots);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleFileUploadComplete = (fileId: string, fileName: string) => {
+    setStorageFileId(fileId);
+    setFileUploaded(true);
+    console.log('文件上传完成:', fileId, fileName);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const data = new FormData();
-    data.append('name', formData.name);
-    data.append('description', formData.description);
-    data.append('longDescription', formData.longDescription);
-    data.append('category', formData.category);
-    data.append('type', formData.type);
-    data.append('version', formData.version);
-    data.append('license', formData.license);
-    data.append('tags', formData.tags);
-    data.append('compatibility', formData.compatibility);
-    if (formData.file) {
-      data.append('file', formData.file);
+    
+    if (!storageFileId) {
+      alert('请先上传工具文件');
+      return;
     }
-    formData.screenshots.forEach((file) => {
-      data.append('screenshots', file);
-    });
-    onSubmit(data);
-    onClose();
+
+    const typeValue = formData.type;
+    const toolData = {
+      name: formData.name,
+      description: formData.description,
+      longDescription: formData.longDescription,
+      category: formData.category,
+      type: (typeValue === 'script' || typeValue === 'plugin' ? typeValue : 'tool') as 'script' | 'tool' | 'plugin',
+      tags: formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
+      version: formData.version,
+      license: formData.license,
+      compatibility: formData.compatibility.split(',').map((t: string) => t.trim()).filter(Boolean),
+      storageFileId,
+      fileSize: '',
+      downloadUrl: '',
+    };
+
+    try {
+      const response = await toolAPI.create(toolData);
+      alert('工具上传成功！');
+      
+      const data = new FormData();
+      data.append('name', formData.name);
+      data.append('storageFileId', storageFileId);
+      onSubmit(data);
+      
+      onClose();
+    } catch (error) {
+      console.error('创建工具失败:', error);
+      alert('创建工具失败，请稍后重试');
+    }
   };
 
   const categories = ['脚本工具', '系统工具', '硬件工具', '网络工具', '其他'];
@@ -127,7 +148,7 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
               <label className="block text-sm font-medium text-theme-text mb-2">类型 *</label>
               <select
                 value={formData.type}
-                onChange={(e) => handleChange('type', e.target.value as 'script' | 'tool' | 'plugin')}
+                onChange={(e) => handleChange('type', e.target.value)}
                 required
                 className="w-full px-4 py-3 bg-theme-bg/50 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
@@ -218,23 +239,17 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
 
           <div>
             <label className="block text-sm font-medium text-theme-text mb-2">上传文件 *</label>
-            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-primary/30 rounded-xl cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors">
-              <div className="flex flex-col items-center justify-center py-4">
-                <FileText className="w-10 h-10 text-primary/50 mb-2" />
-                <p className="text-sm text-text-muted">点击或拖拽上传文件</p>
-                <p className="text-xs text-text-muted mt-1">支持 .exe, .ps1, .zip, .rar</p>
-              </div>
-              <input
-                type="file"
-                onChange={handleFileChange}
-                required
-                className="hidden"
+            <div className="border-2 border-dashed border-primary/30 rounded-xl p-4 bg-theme-bg/30">
+              <DirectUpload 
+                onUploadComplete={handleFileUploadComplete} 
+                category="archive" 
+                accessLevel="public"
               />
-            </label>
-            {formData.file && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-theme-text">
-                <Check className="w-4 h-4 text-green-500" />
-                {formData.file.name}
+            </div>
+            {fileUploaded && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
+                <Check className="w-4 h-4" />
+                文件上传成功！文件ID: {storageFileId.slice(0, 8)}...
               </div>
             )}
           </div>
@@ -254,9 +269,9 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
                 className="hidden"
               />
             </label>
-            {formData.screenshots.length > 0 && (
+            {screenshots.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
-                {formData.screenshots.map((file, index) => (
+                {screenshots.map((file, index) => (
                   <div key={index} className="relative group">
                     <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
                       <Image className="w-8 h-8 text-gray-400" />
@@ -283,9 +298,9 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
             </button>
             <button
               type="submit"
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors"
+              className="flex-1 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors font-medium"
+              disabled={!fileUploaded}
             >
-              <Upload className="w-5 h-5" />
               上传工具
             </button>
           </div>
