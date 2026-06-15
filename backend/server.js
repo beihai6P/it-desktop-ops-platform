@@ -23,6 +23,7 @@ const userRoutes = require('./routes/userRoutes');
 const roleRoutes = require('./routes/roleRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const storageRoutes = require('./routes/storageRoutes');
+const presignedRoutes = require('./routes/presignedRoutes');
 const { seedData } = require('./utils/seedData');
 
 const app = express();
@@ -50,6 +51,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/storage', storageRoutes);
+app.use('/api/presigned', presignedRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'IT桌面运维互动平台后端服务运行正常' });

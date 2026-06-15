@@ -288,29 +288,116 @@ class VolcengineStorage {
   }
 
   /**
-   * 获取文件URL
+   * 生成预签名URL
+   * @param {object} options - 选项
+   * @param {string} options.key - 对象键
+   * @param {string} options.operation - 操作类型: put, get, uploadPart
+   * @param {string} [options.contentType] - 内容类型（用于put操作）
+   * @param {number} [options.expiresIn] - 过期时间（秒）
+   * @param {string} [options.uploadId] - 分片上传ID（用于uploadPart）
+   * @param {number} [options.partNumber] - 分片编号（用于uploadPart）
    */
-  getObjectUrl(key) {
-    return `https://${this.bucket}.${this.endpoint.replace(/^https?:\/\//, '')}/${key}`;
+  async getPresignedUrl(options) {
+    try {
+      const { key, operation, contentType, expiresIn = 3600, uploadId, partNumber } = options;
+      
+      let method = 'GET';
+      let params = {
+        bucket: this.bucket,
+        key,
+        expires: expiresIn,
+      };
+      
+      switch (operation) {
+        case 'put':
+          method = 'PUT';
+          if (contentType) {
+            params.contentType = contentType;
+          }
+          break;
+        case 'uploadPart':
+          method = 'PUT';
+          params.uploadId = uploadId;
+          params.partNumber = partNumber;
+          break;
+        case 'get':
+        default:
+          method = 'GET';
+          break;
+      }
+      
+      // 火山引擎TOS SDK生成预签名URL
+      const url = await this.client.signUrl({
+        method,
+        ...params,
+      });
+      
+      return url;
+    } catch (error) {
+      console.error(`❌ 生成预签名URL失败: ${key}`, error);
+      throw new Error(`生成预签名URL失败: ${error.message}`);
+    }
   }
 
   /**
-   * 生成预签名URL（用于防盗链）
+   * 初始化分片上传
    */
-  async getSignedUrl(key, expiresIn = 3600, method = 'GET') {
+  async initMultipartUpload(key) {
     try {
-      // 简化处理，实际可使用STS或签名URL
-      // 火山引擎TOS支持预签名URL生成
-      const params = {
+      const result = await this.client.createMultipartUpload({
         bucket: this.bucket,
         key,
-        method,
-        expires: expiresIn,
-      };
-      // TODO: 使用SDK的预签名URL方法
-      return this.getObjectUrl(key);
+      });
+      
+      return result.uploadId;
     } catch (error) {
-      throw new Error(`生成预签名URL失败: ${error.message}`);
+      console.error(`❌ 初始化分片上传失败: ${key}`, error);
+      throw new Error(`初始化分片上传失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 完成分片上传
+   */
+  async completeMultipartUpload(options) {
+    try {
+      const { key, uploadId, parts } = options;
+      
+      const result = await this.client.completeMultipartUpload({
+        bucket: this.bucket,
+        key,
+        uploadId,
+        parts: parts.map(p => ({
+          partNumber: p.partNumber,
+          etag: p.etag,
+        })),
+      });
+      
+      return {
+        etag: result.etag,
+        location: result.location,
+      };
+    } catch (error) {
+      console.error(`❌ 完成分片上传失败: ${key}`, error);
+      throw new Error(`完成分片上传失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 取消分片上传
+   */
+  async abortMultipartUpload(key, uploadId) {
+    try {
+      await this.client.abortMultipartUpload({
+        bucket: this.bucket,
+        key,
+        uploadId,
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error(`❌ 取消分片上传失败: ${key}`, error);
+      throw new Error(`取消分片上传失败: ${error.message}`);
     }
   }
 }
