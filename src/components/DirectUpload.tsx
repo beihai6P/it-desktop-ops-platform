@@ -59,11 +59,24 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   };
 
-  const calculateSHA256 = async (file: File): Promise<string> => {
-    const crypto = window.crypto || (window as any).msCrypto;
-    const hash = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
-    const hashArray = Array.from(new Uint8Array(hash));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const calculateSHA256 = async (file: File): Promise<string | null> => {
+    try {
+      const crypto = window.crypto || (window as any).msCrypto;
+      
+      const maxHashSize = 50 * 1024 * 1024;
+      
+      if (file.size > maxHashSize) {
+        return null;
+      }
+      
+      const arrayBuffer = await file.arrayBuffer();
+      const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(digest));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (error) {
+      console.error('计算SHA256失败:', error);
+      return null;
+    }
   };
 
   const validateFile = (file: File) => {
@@ -116,7 +129,7 @@ interface PresignedResult {
   message?: string;
 }
 
-  const getPresignedUrl = async (file: File, sha256: string): Promise<PresignedResult> => {
+  const getPresignedUrl = async (file: File, sha256: string | null): Promise<PresignedResult> => {
     const token = localStorage.getItem('token');
     const response = await fetch('/api/presigned/upload-url', {
       method: 'POST',
@@ -138,7 +151,7 @@ interface PresignedResult {
     return data;
   };
 
-  const uploadFileDirectly = async (fileItem: FileItem, file: File, sha256: string) => {
+  const uploadFileDirectly = async (fileItem: FileItem, file: File, sha256: string | null) => {
     try {
       const result = await getPresignedUrl(file, sha256);
       
@@ -208,7 +221,7 @@ interface PresignedResult {
     }
   };
 
-  const uploadLargeFile = async (fileItem: FileItem, file: File, sha256: string) => {
+  const uploadLargeFile = async (fileItem: FileItem, file: File, sha256: string | null) => {
     try {
       const token = localStorage.getItem('token');
       const parts = Math.ceil(file.size / CHUNK_SIZE);
@@ -351,19 +364,23 @@ interface PresignedResult {
       setFileList(prev => [...prev, newItem]);
 
       try {
-        setFileList(prev => prev.map(item =>
-          item.uid === newItem.uid ? { ...item, status: 'hashing' } : item
-        ));
-
         const sha256 = await calculateSHA256(file);
 
-        setFileList(prev => prev.map(item =>
-          item.uid === newItem.uid ? { ...item, sha256, status: 'checking' } : item
-        ));
-
         if (file.size > CHUNK_SIZE) {
+          setFileList(prev => prev.map(item =>
+            item.uid === newItem.uid ? { ...item, sha256, status: 'uploading', progress: 0 } : item
+          ));
           await uploadLargeFile(newItem, file, sha256);
         } else {
+          if (sha256) {
+            setFileList(prev => prev.map(item =>
+              item.uid === newItem.uid ? { ...item, sha256, status: 'checking' } : item
+            ));
+          } else {
+            setFileList(prev => prev.map(item =>
+              item.uid === newItem.uid ? { ...item, sha256: null, status: 'uploading', progress: 0 } : item
+            ));
+          }
           await uploadFileDirectly(newItem, file, sha256);
         }
       } catch (error) {
