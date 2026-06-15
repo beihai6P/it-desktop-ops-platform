@@ -60,38 +60,32 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
   };
 
   const calculateSHA256 = async (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const crypto = window.crypto || (window as any).msCrypto;
-      const fileReader = new FileReader();
-      
-      fileReader.onload = (e) => {
-        try {
-          const arrayBuffer = e.target?.result as ArrayBuffer;
-          crypto.subtle.digest('SHA-256', arrayBuffer).then((hashBuffer) => {
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            resolve(hashHex);
-          }).catch(reject);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      
-      fileReader.onerror = reject;
-      fileReader.readAsArrayBuffer(file);
-    });
+    const crypto = window.crypto || (window as any).msCrypto;
+    const hash = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    const hashArray = Array.from(new Uint8Array(hash));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   };
 
   const validateFile = (file: File) => {
-    const allowedTypes: Record<string, string[]> = {
-      image: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-      video: ['video/mp4', 'video/quicktime'],
-      archive: ['application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed'],
+    const allowedExtensions: Record<string, string[]> = {
+      image: ['.jpg', '.jpeg', '.png', '.webp', '.gif'],
+      video: ['.mp4', '.mov'],
+      archive: ['.zip', '.rar', '.7z'],
     };
 
+    const allowedTypes: Record<string, string[]> = {
+      image: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/pjpeg', 'image/x-png'],
+      video: ['video/mp4', 'video/quicktime', 'video/mpeg', 'video/x-msvideo'],
+      archive: ['application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed', 
+                'application/octet-stream', 'application/x-zip-compressed'],
+    };
+
+    const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    const categoryExtensions = allowedExtensions[category] || [];
     const categoryTypes = allowedTypes[category] || [];
-    if (!categoryTypes.includes(file.type)) {
-      return { valid: false, message: `不支持的文件类型，仅支持: ${categoryTypes.join(', ')}` };
+
+    if (!categoryExtensions.includes(ext) && !categoryTypes.includes(file.type)) {
+      return { valid: false, message: `不支持的文件类型，仅支持: ${categoryExtensions.join(', ')}` };
     }
 
     const sizeLimits: Record<string, number> = {
