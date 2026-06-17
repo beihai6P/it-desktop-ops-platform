@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import { X, Send, Plus, Trash2, Monitor, Wifi, HardDrive, Printer, Cloud, Shield, FileText, Cpu, Save, BookOpen, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { X, Send, Plus, Trash2, Monitor, Wifi, HardDrive, Printer, Cloud, Shield, FileText, Cpu, Save, BookOpen, ChevronRight, Image, XCircle } from 'lucide-react';
 import type { Case, CaseCategory, CaseTemplate } from '@/types';
+import DirectUpload from './DirectUpload';
 
 interface CaseSubmitProps {
   onClose: () => void;
@@ -112,17 +113,23 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
     symptoms: [''],
     causeAnalysis: '',
     troubleshooting: '',
+    troubleshootingImages: [] as Array<{ file: File; preview: string; fileId?: string; fileName: string; url?: string }>,
     solution: '',
+    solutionImages: [] as Array<{ file: File; preview: string; fileId?: string; fileName: string; url?: string }>,
+    causeAnalysisImages: [] as Array<{ file: File; preview: string; fileId?: string; fileName: string; url?: string }>,
     steps: [{ step: 1, title: '', description: '', commands: [''], expectedResult: '' }],
     tags: [''],
     visibility: 'public' as 'public' | 'private',
-    attachments: [] as File[],
+    attachments: [] as Array<{ fileId: string; fileName: string }>,
   });
 
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [autoSaveIndicator, setAutoSaveIndicator] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ fileId: string; fileName: string }>>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   // 草稿键名
   const DRAFT_KEY = 'case-submit-draft';
@@ -133,7 +140,12 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
     if (saved) {
       try {
         const draft = JSON.parse(saved);
-        setFormData(draft);
+        setFormData({
+          ...draft,
+          troubleshootingImages: draft.troubleshootingImages || [],
+          solutionImages: draft.solutionImages || [],
+          causeAnalysisImages: draft.causeAnalysisImages || [],
+        });
       } catch {
         console.error('Failed to load draft');
       }
@@ -280,6 +292,10 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
       newErrors.symptoms = '请至少填写一个故障症状';
     }
 
+    if (!formData.causeAnalysis.trim()) {
+      newErrors.causeAnalysis = '请输入原因分析';
+    }
+
     if (!formData.solution.trim()) {
       newErrors.solution = '请填写解决方案';
     }
@@ -293,9 +309,137 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleFileUploadComplete = useCallback((fileId: string, fileName: string) => {
+    setUploadedFiles(prev => [...prev, { fileId, fileName }]);
+    setFormData(prev => ({
+      ...prev,
+      attachments: [...prev.attachments, { fileId, fileName }]
+    }));
+  }, []);
+
+  const handleRemoveAttachment = useCallback((index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+    setFormData(prev => ({
+      ...prev,
+      attachments: prev.attachments.filter((_, i) => i !== index)
+    }));
+  }, []);
+
+  const handleTroubleshootingImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files).map((file) => ({
+        file,
+        preview: URL.createObjectURL(file),
+        fileName: file.name,
+      }));
+      setFormData(prev => ({
+        ...prev,
+        troubleshootingImages: [...prev.troubleshootingImages, ...newFiles]
+      }));
+    }
+    if (e.target) {
+      e.target.value = '';
+    }
+  }, []);
+
+  const handleRemoveTroubleshootingImage = useCallback((index: number) => {
+    setFormData(prev => {
+      const image = prev.troubleshootingImages[index];
+      if (image?.preview) {
+        URL.revokeObjectURL(image.preview);
+      }
+      return {
+        ...prev,
+        troubleshootingImages: prev.troubleshootingImages.filter((_, i) => i !== index)
+      };
+    });
+  }, []);
+
+  const handleCauseAnalysisImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files).map((file) => ({
+        file,
+        preview: URL.createObjectURL(file),
+        fileName: file.name,
+      }));
+      setFormData(prev => ({
+        ...prev,
+        causeAnalysisImages: [...prev.causeAnalysisImages, ...newFiles]
+      }));
+    }
+    if (e.target) {
+      e.target.value = '';
+    }
+  }, []);
+
+  const handleRemoveCauseAnalysisImage = useCallback((index: number) => {
+    setFormData(prev => {
+      const image = prev.causeAnalysisImages[index];
+      if (image?.preview) {
+        URL.revokeObjectURL(image.preview);
+      }
+      return {
+        ...prev,
+        causeAnalysisImages: prev.causeAnalysisImages.filter((_, i) => i !== index)
+      };
+    });
+  }, []);
+
+  const handleSolutionImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files).map((file) => ({
+        file,
+        preview: URL.createObjectURL(file),
+        fileName: file.name,
+      }));
+      setFormData(prev => ({
+        ...prev,
+        solutionImages: [...prev.solutionImages, ...newFiles]
+      }));
+    }
+    if (e.target) {
+      e.target.value = '';
+    }
+  }, []);
+
+  const handleRemoveSolutionImage = useCallback((index: number) => {
+    setFormData(prev => {
+      const image = prev.solutionImages[index];
+      if (image?.preview) {
+        URL.revokeObjectURL(image.preview);
+      }
+      return {
+        ...prev,
+        solutionImages: prev.solutionImages.filter((_, i) => i !== index)
+      };
+    });
+  }, []);
+
   // 提交表单
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    if (isSubmittingRef.current) return;
+    
+    if (!validateForm()) {
+      const missingFields = Object.keys(errors).map(key => {
+        const fieldNames: Record<string, string> = {
+          title: '故障标题',
+          symptoms: '故障症状',
+          causeAnalysis: '原因分析',
+          solution: '解决方案',
+          steps: '排查步骤',
+        };
+        return fieldNames[key] || key;
+      });
+      
+      if (missingFields.length > 0) {
+        const message = `请补充以下必填字段：\n\n${missingFields.join('\n• ')}`;
+        alert(message);
+      }
+      return;
+    }
+    
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
 
     const validSymptoms = formData.symptoms.filter((s) => s.trim());
     const validSteps = formData.steps.map((step, index) => ({
@@ -320,36 +464,46 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
       status: formData.visibility === 'private' ? 'pending' : 'resolved',
       symptoms: validSymptoms,
       causeAnalysis: formData.causeAnalysis,
+      troubleshooting: formData.troubleshooting,
       solution: formData.solution,
       steps: validSteps,
       tags: validTags,
       difficulty: 'medium',
       visibility: formData.visibility === 'private' ? 'private' : 'public',
+      attachments: uploadedFiles,
     };
 
-    const formDataToSubmit = new FormData();
-    formDataToSubmit.append('data', JSON.stringify(caseData));
-
-    if (formData.attachments.length > 0) {
-      for (const file of formData.attachments) {
-        if (file instanceof File) {
-          formDataToSubmit.append('attachments', file);
-        }
-      }
-    }
-
     try {
-      console.log('[案例提交] 开始提交，附件数量:', formData.attachments.length);
-      console.log('[案例提交] 数据大小:', formDataToSubmit.get('data')?.length || 0, 'bytes');
+      console.log('[案例提交] 开始提交，附件数量:', uploadedFiles.length);
+      console.log('[案例提交] 附件信息:', JSON.stringify(uploadedFiles));
       
-      const response = await fetch('http://localhost:5000/api/cases', {
+      const submitFormData = new FormData();
+      submitFormData.append('data', JSON.stringify(caseData));
+      
+      formData.troubleshootingImages?.forEach((img) => {
+        if (img.file) {
+          submitFormData.append('troubleshootingImages', img.file);
+        }
+      });
+      
+      formData.causeAnalysisImages?.forEach((img) => {
+        if (img.file) {
+          submitFormData.append('causeAnalysisImages', img.file);
+        }
+      });
+      
+      formData.solutionImages?.forEach((img) => {
+        if (img.file) {
+          submitFormData.append('solutionImages', img.file);
+        }
+      });
+      
+      const response = await fetch('/api/cases', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: formDataToSubmit,
-        mode: 'cors',
-        credentials: 'include'
+        body: submitFormData,
       });
 
       console.log('[案例提交] 响应状态:', response.status);
@@ -370,8 +524,9 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
           verification: false,
           quality: validSteps.length >= 3 ? 'verified' : 'standard',
         };
-        onSubmit(submitData);
         localStorage.removeItem(DRAFT_KEY);
+        setUploadedFiles([]);
+        onSubmit(submitData);
         setTimeout(() => {
           onClose();
         }, 100);
@@ -395,6 +550,9 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
       } else {
         alert(`提交失败: ${error.message || '未知错误'}`);
       }
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -641,16 +799,101 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
                 排查与解决方案
               </h3>
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-theme-text mb-2">我的排查过程</label>
                   <textarea
                     value={formData.troubleshooting}
                     onChange={(e) => handleInputChange('troubleshooting', e.target.value)}
                     placeholder="记录你一步步测试、定位问题的操作..."
-                    rows={4}
+                    rows={3}
                     className="w-full px-4 py-3 bg-theme-bg border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
                   />
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium text-theme-text mb-2 flex items-center gap-2">
+                      <Image className="w-4 h-4" />
+                      插入图片
+                    </label>
+                    <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-primary/20 rounded-xl cursor-pointer hover:border-primary/40 transition-colors">
+                      <Image className="w-8 h-8 text-text-muted mb-2" />
+                      <span className="text-sm text-text-muted">点击选择图片</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleTroubleshootingImageChange}
+                        className="hidden"
+                      />
+                    </label>
+                    {formData.troubleshootingImages.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {formData.troubleshootingImages.map((img, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={img.preview || img.url}
+                              alt={img.fileName}
+                              className="w-20 h-20 object-cover rounded-lg"
+                            />
+                            <button
+                              onClick={() => handleRemoveTroubleshootingImage(index)}
+                              className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-theme-text mb-2">原因分析 <span className="text-red-500">*</span></label>
+                  <textarea
+                    value={formData.causeAnalysis}
+                    onChange={(e) => handleInputChange('causeAnalysis', e.target.value)}
+                    placeholder="分析故障根因，如：驱动版本不兼容、组策略配置错误、系统文件损坏等..."
+                    rows={3}
+                    className={`w-full px-4 py-3 bg-theme-bg border rounded-xl focus:outline-none focus:ring-2 resize-none ${
+                      errors.causeAnalysis ? 'border-red-300 focus:ring-red-300' : 'border-primary/20 focus:ring-primary/30'
+                    }`}
+                  />
+                  {errors.causeAnalysis && <p className="mt-1 text-sm text-red-500">{errors.causeAnalysis}</p>}
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium text-theme-text mb-2 flex items-center gap-2">
+                      <Image className="w-4 h-4" />
+                      插入图片
+                    </label>
+                    <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-primary/20 rounded-xl cursor-pointer hover:border-primary/40 transition-colors">
+                      <Image className="w-8 h-8 text-text-muted mb-2" />
+                      <span className="text-sm text-text-muted">点击选择图片</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleCauseAnalysisImageChange}
+                        className="hidden"
+                      />
+                    </label>
+                    {(formData.causeAnalysisImages || []).length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {formData.causeAnalysisImages.map((img, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={img.preview || img.url}
+                              alt={img.fileName}
+                              className="w-20 h-20 object-cover rounded-lg"
+                            />
+                            <button
+                              onClick={() => handleRemoveCauseAnalysisImage(index)}
+                              className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-theme-text mb-2">最终根治方案 <span className="text-red-500">*</span></label>
@@ -658,12 +901,48 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
                     value={formData.solution}
                     onChange={(e) => handleInputChange('solution', e.target.value)}
                     placeholder="完整可复用修复步骤，支持粘贴CMD/PowerShell脚本、注册表路径..."
-                    rows={4}
+                    rows={3}
                     className={`w-full px-4 py-3 bg-theme-bg border rounded-xl focus:outline-none focus:ring-2 resize-none ${
                       errors.solution ? 'border-red-300 focus:ring-red-300' : 'border-primary/20 focus:ring-primary/30'
                     }`}
                   />
                   {errors.solution && <p className="mt-1 text-sm text-red-500">{errors.solution}</p>}
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium text-theme-text mb-2 flex items-center gap-2">
+                      <Image className="w-4 h-4" />
+                      插入图片
+                    </label>
+                    <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-primary/20 rounded-xl cursor-pointer hover:border-primary/40 transition-colors">
+                      <Image className="w-8 h-8 text-text-muted mb-2" />
+                      <span className="text-sm text-text-muted">点击选择图片</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleSolutionImageChange}
+                        className="hidden"
+                      />
+                    </label>
+                    {(formData.solutionImages || []).length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {formData.solutionImages.map((img, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={img.preview || img.url}
+                              alt={img.fileName}
+                              className="w-20 h-20 object-cover rounded-lg"
+                            />
+                            <button
+                              onClick={() => handleRemoveSolutionImage(index)}
+                              className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -814,50 +1093,29 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
 
               <div className="mt-4">
                 <label className="block text-sm font-medium text-theme-text mb-2">附件上传</label>
-                <div className="border-2 border-dashed border-primary/20 rounded-xl p-8 text-center hover:border-primary/40 transition-colors">
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*,.txt,.log,.zip,.pdf,.doc,.docx,.xls,.xlsx,.rar"
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files || []);
-                      setFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...files] }));
-                    }}
-                    className="hidden"
-                    id="file-upload"
+                <div className="border-2 border-dashed border-primary/20 rounded-xl p-4 hover:border-primary/40 transition-colors">
+                  <DirectUpload 
+                    onUploadComplete={handleFileUploadComplete} 
+                    category="document" 
+                    accessLevel="private"
                   />
-                  <label htmlFor="file-upload" className="cursor-pointer">
-                    <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mx-auto mb-3">
-                      <Plus className="w-7 h-7 text-primary" />
-                    </div>
-                    <p className="text-sm text-theme-text">点击或拖拽上传文件</p>
-                    <p className="text-xs text-text-muted mt-1">支持图片、日志、文档、压缩包等格式（最大50MB）</p>
-                  </label>
-                  {formData.attachments.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {formData.attachments.map((file, index) => (
-                        <div key={index} className="flex items-center gap-2 px-3 py-1.5 bg-theme-bg rounded-lg">
-                          <FileText className="w-4 h-4 text-text-muted" />
-                          <span className="text-sm text-theme-text truncate max-w-32">{file.name}</span>
-                          <span className="text-xs text-text-muted">
-                            {file.size > 1024 * 1024 
-                              ? `${(file.size / (1024 * 1024)).toFixed(1)}MB` 
-                              : `${(file.size / 1024).toFixed(1)}KB`}
-                          </span>
-                          <button
-                            onClick={() => {
-                              const newAttachments = formData.attachments.filter((_, i) => i !== index);
-                              setFormData(prev => ({ ...prev, attachments: newAttachments }));
-                            }}
-                            className="text-text-muted hover:text-red-500"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {uploadedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center gap-2 px-3 py-1.5 bg-theme-bg rounded-lg">
+                        <FileText className="w-4 h-4 text-text-muted" />
+                        <span className="text-sm text-theme-text truncate max-w-32">{file.fileName}</span>
+                        <button
+                          onClick={() => handleRemoveAttachment(index)}
+                          className="text-text-muted hover:text-red-500"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -877,10 +1135,15 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
             </button>
             <button
               onClick={handleSubmit}
-              className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors shadow-lg shadow-primary/30"
+              disabled={isSubmitting}
+              className={`flex items-center gap-2 px-6 py-2 rounded-xl transition-colors shadow-lg ${
+                isSubmitting 
+                  ? 'bg-gray-400 text-white cursor-not-allowed' 
+                  : 'bg-primary text-white hover:bg-primary-dark shadow-primary/30'
+              }`}
             >
-              <Send className="w-4 h-4" />
-              发布案例
+              <Send className={`w-4 h-4 ${isSubmitting ? 'animate-spin' : ''}`} />
+              {isSubmitting ? '发布中...' : '发布案例'}
             </button>
           </div>
         </div>

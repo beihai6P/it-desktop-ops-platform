@@ -7,6 +7,8 @@ const {
   createCase,
   updateCase,
   deleteCase,
+  toggleEssence,
+  togglePin,
   likeCase,
   getCaseStats
 } = require('../controllers/caseController');
@@ -18,23 +20,14 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: {
-    fileSize: 50 * 1024 * 1024
+    fileSize: 10 * 1024 * 1024
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp',
-      'text/plain', 'text/html', 'application/json',
-      'application/pdf', 'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/x-zip-compressed', 'application/zip', 'application/x-rar-compressed',
-      'videomp4', 'video/avi', 'video/mov', 'video/webm'
-    ];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('不支持的文件类型'), false);
+      cb(new Error('只允许上传图片文件'), false);
     }
   }
 });
@@ -42,14 +35,11 @@ const upload = multer({
 router.get('/', getAllCases);
 router.get('/stats', getCaseStats);
 router.get('/:id', getCaseById);
-router.post(
-  '/',
-  protect,
-  upload.array('attachments', 20),
-  createCase
-);
+router.post('/', protect, upload.any(), createCase);
 router.put('/:id', protect, updateCase);
 router.delete('/:id', protect, deleteCase);
 router.post('/:id/like', protect, likeCase);
+router.post('/:id/essence', protect, admin, toggleEssence);
+router.post('/:id/pin', protect, admin, togglePin);
 
 module.exports = router;

@@ -14,7 +14,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 
 // 允许的上传目录
-const ALLOWED_UPLOAD_DIRS = ['uploads/archive', 'uploads/tools', 'uploads/images', 'uploads/videos'];
+const ALLOWED_UPLOAD_DIRS = ['uploads/archive', 'uploads/tools', 'uploads/images', 'uploads/videos', 'uploads/documents'];
 
 /**
  * 预检查文件是否已存在（通过SHA256）
@@ -63,12 +63,25 @@ const getUploadPresignedUrl = async (req, res) => {
       'image/png': { ext: ['png'], dir: 'uploads/images', category: 'image' },
       'image/webp': { ext: ['webp'], dir: 'uploads/images', category: 'image' },
       'image/gif': { ext: ['gif'], dir: 'uploads/images', category: 'image' },
+      'image/bmp': { ext: ['bmp'], dir: 'uploads/images', category: 'image' },
       'video/mp4': { ext: ['mp4'], dir: 'uploads/videos', category: 'video' },
       'video/quicktime': { ext: ['mov'], dir: 'uploads/videos', category: 'video' },
+      'video/avi': { ext: ['avi'], dir: 'uploads/videos', category: 'video' },
+      'video/webm': { ext: ['webm'], dir: 'uploads/videos', category: 'video' },
       'application/zip': { ext: ['zip'], dir: 'uploads/archive', category: 'archive' },
       'application/x-rar-compressed': { ext: ['rar'], dir: 'uploads/archive', category: 'archive' },
       'application/x-7z-compressed': { ext: ['7z'], dir: 'uploads/archive', category: 'archive' },
-      'application/octet-stream': { ext: ['zip', 'rar', '7z'], dir: 'uploads/archive', category: 'archive' },
+      'application/octet-stream': { ext: ['zip', 'rar', '7z', 'exe', 'dll'], dir: 'uploads/archive', category: 'archive' },
+      'text/plain': { ext: ['txt', 'log'], dir: 'uploads/documents', category: 'document' },
+      'text/html': { ext: ['html', 'htm'], dir: 'uploads/documents', category: 'document' },
+      'application/json': { ext: ['json'], dir: 'uploads/documents', category: 'document' },
+      'application/pdf': { ext: ['pdf'], dir: 'uploads/documents', category: 'document' },
+      'application/msword': { ext: ['doc'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { ext: ['docx'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.ms-excel': { ext: ['xls'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { ext: ['xlsx'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.ms-powerpoint': { ext: ['ppt'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': { ext: ['pptx'], dir: 'uploads/documents', category: 'document' },
     };
     
     const ext = filename.split('.').pop().toLowerCase();
@@ -137,21 +150,24 @@ const getUploadPresignedUrl = async (req, res) => {
       },
     });
     
-    // 8. 预先生成存储文件记录（状态为pending）
+    // 8. 预先生成存储文件记录（状态为uploading）
+    const tempMd5 = crypto.createHash('md5').update(fileId + Date.now()).digest('hex');
+    
     const storageFile = await StorageFile.create({
       fileId,
       originalName: filename,
-      mimeType,
+      storageName: `${Date.now()}-${safeFilename}`,
+      mimeType: mimeType || 'application/octet-stream',
       size,
       extension: ext,
       storagePath: objectKey,
       category: typeConfig.category,
       accessLevel: req.body.accessLevel || 'private',
-      status: 'pending',
+      status: 'uploading',
       uploadedBy: req.user?.id || null,
       hash: {
-        md5: '',
-        sha256: sha256 || '',
+        md5: tempMd5,
+        sha256: sha256 || crypto.createHash('sha256').update(fileId + Date.now()).digest('hex'),
       },
       metadata: {
         uploadType: 'presigned-url',
@@ -209,21 +225,31 @@ const getDownloadPresignedUrl = async (req, res) => {
     
     const { getStorageAdapter } = require('../services/storageAdapter');
     const storageAdapter = getStorageAdapter();
-    const presignedUrl = await storageAdapter.getPresignedUrl({
-      key: file.storagePath,
-      operation: 'get',
-      expiresIn: 3600,
-    });
     
-    res.json({
-      success: true,
-      fileId: file.fileId,
-      originalName: file.originalName,
-      presignedUrl,
-      expiresAt: new Date(Date.now() + 3600 * 1000),
-      mimeType: file.mimeType,
-      size: file.size,
-    });
+    if (file.mimeType?.startsWith('image/')) {
+      const presignedUrl = await storageAdapter.getPresignedUrl({
+        key: file.storagePath,
+        operation: 'get',
+        expiresIn: 3600,
+      });
+      
+      res.redirect(presignedUrl);
+      return;
+    }
+    
+    const result = await storageAdapter.getObjectStream(file.storagePath);
+    
+    if (!result || !result.stream) {
+      return res.status(404).json({ message: '文件不存在' });
+    }
+    
+    res.setHeader('Content-Type', file.mimeType || result.contentType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.originalName)}"`);
+    if (result.contentLength) {
+      res.setHeader('Content-Length', result.contentLength);
+    }
+    
+    result.stream.pipe(res);
     
   } catch (error) {
     console.error('生成下载预签名URL失败:', error);
@@ -247,6 +273,7 @@ const confirmUpload = async (req, res) => {
     
     // 2. 如果已经是active状态，直接返回成功（幂等性）
     if (existingFile.status === 'active') {
+      const downloadUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/presigned/download-url/${existingFile.fileId}`;
       return res.json({
         success: true,
         message: '文件已上传',
@@ -256,12 +283,14 @@ const confirmUpload = async (req, res) => {
           size: existingFile.size,
           mimeType: existingFile.mimeType,
           status: existingFile.status,
+          downloadUrl,
         },
       });
     }
     
     // 3. 验证文件是否存在于对象存储
-    const { storageAdapter } = require('../services/storageAdapter');
+    const { getStorageAdapter } = require('../services/storageAdapter');
+    const storageAdapter = getStorageAdapter();
     const fileInfo = await storageAdapter.getObjectInfo(existingFile.storagePath);
     
     if (!fileInfo) {
@@ -308,6 +337,8 @@ const confirmUpload = async (req, res) => {
     existingFile.metadata.uploadType = undefined;
     
     await existingFile.save();
+
+    const downloadUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/presigned/download-url/${existingFile.fileId}`;
     
     res.json({
       success: true,
@@ -318,6 +349,7 @@ const confirmUpload = async (req, res) => {
         size: existingFile.size,
         mimeType: existingFile.mimeType,
         status: existingFile.status,
+        downloadUrl,
       },
     });
     
@@ -384,12 +416,25 @@ const initMultipartUpload = async (req, res) => {
       'image/png': { ext: ['png'], dir: 'uploads/images', category: 'image' },
       'image/webp': { ext: ['webp'], dir: 'uploads/images', category: 'image' },
       'image/gif': { ext: ['gif'], dir: 'uploads/images', category: 'image' },
+      'image/bmp': { ext: ['bmp'], dir: 'uploads/images', category: 'image' },
       'video/mp4': { ext: ['mp4'], dir: 'uploads/videos', category: 'video' },
       'video/quicktime': { ext: ['mov'], dir: 'uploads/videos', category: 'video' },
+      'video/avi': { ext: ['avi'], dir: 'uploads/videos', category: 'video' },
+      'video/webm': { ext: ['webm'], dir: 'uploads/videos', category: 'video' },
       'application/zip': { ext: ['zip'], dir: 'uploads/archive', category: 'archive' },
       'application/x-rar-compressed': { ext: ['rar'], dir: 'uploads/archive', category: 'archive' },
       'application/x-7z-compressed': { ext: ['7z'], dir: 'uploads/archive', category: 'archive' },
-      'application/octet-stream': { ext: ['zip', 'rar', '7z'], dir: 'uploads/archive', category: 'archive' },
+      'application/octet-stream': { ext: ['zip', 'rar', '7z', 'exe', 'dll'], dir: 'uploads/archive', category: 'archive' },
+      'text/plain': { ext: ['txt', 'log'], dir: 'uploads/documents', category: 'document' },
+      'text/html': { ext: ['html', 'htm'], dir: 'uploads/documents', category: 'document' },
+      'application/json': { ext: ['json'], dir: 'uploads/documents', category: 'document' },
+      'application/pdf': { ext: ['pdf'], dir: 'uploads/documents', category: 'document' },
+      'application/msword': { ext: ['doc'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { ext: ['docx'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.ms-excel': { ext: ['xls'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { ext: ['xlsx'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.ms-powerpoint': { ext: ['ppt'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': { ext: ['pptx'], dir: 'uploads/documents', category: 'document' },
     };
     
     const ext = filename.split('.').pop()?.toLowerCase();
@@ -759,12 +804,25 @@ const proxyUpload = async (req, res) => {
       'image/png': { ext: ['png'], dir: 'uploads/images', category: 'image' },
       'image/webp': { ext: ['webp'], dir: 'uploads/images', category: 'image' },
       'image/gif': { ext: ['gif'], dir: 'uploads/images', category: 'image' },
+      'image/bmp': { ext: ['bmp'], dir: 'uploads/images', category: 'image' },
       'video/mp4': { ext: ['mp4'], dir: 'uploads/videos', category: 'video' },
       'video/quicktime': { ext: ['mov'], dir: 'uploads/videos', category: 'video' },
+      'video/avi': { ext: ['avi'], dir: 'uploads/videos', category: 'video' },
+      'video/webm': { ext: ['webm'], dir: 'uploads/videos', category: 'video' },
       'application/zip': { ext: ['zip'], dir: 'uploads/archive', category: 'archive' },
       'application/x-rar-compressed': { ext: ['rar'], dir: 'uploads/archive', category: 'archive' },
       'application/x-7z-compressed': { ext: ['7z'], dir: 'uploads/archive', category: 'archive' },
-      'application/octet-stream': { ext: ['zip', 'rar', '7z'], dir: 'uploads/archive', category: 'archive' },
+      'application/octet-stream': { ext: ['zip', 'rar', '7z', 'exe', 'dll'], dir: 'uploads/archive', category: 'archive' },
+      'text/plain': { ext: ['txt', 'log'], dir: 'uploads/documents', category: 'document' },
+      'text/html': { ext: ['html', 'htm'], dir: 'uploads/documents', category: 'document' },
+      'application/json': { ext: ['json'], dir: 'uploads/documents', category: 'document' },
+      'application/pdf': { ext: ['pdf'], dir: 'uploads/documents', category: 'document' },
+      'application/msword': { ext: ['doc'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { ext: ['docx'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.ms-excel': { ext: ['xls'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { ext: ['xlsx'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.ms-powerpoint': { ext: ['ppt'], dir: 'uploads/documents', category: 'document' },
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': { ext: ['pptx'], dir: 'uploads/documents', category: 'document' },
     };
     
     const ext = filename.split('.').pop()?.toLowerCase();
@@ -962,6 +1020,39 @@ const directUpload = async (req, res) => {
   }
 };
 
+const proxyImage = async (req, res) => {
+  try {
+    const { path } = req.params;
+    
+    if (!path) {
+      return res.status(400).json({ message: '缺少路径参数' });
+    }
+    
+    const decodedPath = decodeURIComponent(path);
+    
+    const { getStorageAdapter } = require('../services/storageAdapter');
+    const storageAdapter = getStorageAdapter();
+    
+    const result = await storageAdapter.getObjectStream(decodedPath);
+    
+    if (!result || !result.stream) {
+      return res.status(404).json({ message: '图片不存在' });
+    }
+    
+    res.setHeader('Content-Type', result.contentType || 'image/jpeg');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    if (result.contentLength) {
+      res.setHeader('Content-Length', result.contentLength);
+    }
+    
+    result.stream.pipe(res);
+    
+  } catch (error) {
+    console.error('图片代理失败:', error);
+    res.status(500).json({ message: '服务器错误', error: error.message });
+  }
+};
+
 module.exports = {
   getUploadPresignedUrl,
   getDownloadPresignedUrl,
@@ -973,6 +1064,7 @@ module.exports = {
   calculateSHA256,
   proxyUpload,
   proxyUploadPart,
+  proxyImage,
   uploadPartDirect,
   directUpload,
 };

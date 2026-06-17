@@ -48,4 +48,7 @@ router.post('/direct-upload/:fileId', authMiddleware.protect, presignedControlle
 // 直接上传分片（通过后端代理，解决CORS问题）
 router.post('/upload-part-direct', authMiddleware.protect, presignedController.uploadPartDirect);
 
+// 图片代理（解决火山引擎存储桶访问权限问题）
+router.get('/image/:path(*)', presignedController.proxyImage);
+
 module.exports = router;

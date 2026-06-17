@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, FileText, MessageSquare, Activity } from 'lucide-react';
 import StatCard from '../components/StatCard';
+import SevenDayTrendChart from '../components/SevenDayTrendChart';
 import { analyticsAPI, postAPI, userAPI } from '../services/api';
 import type { AnalyticsData, Post, User } from '../types';
 
@@ -88,6 +89,36 @@ export default function Dashboard() {
           icon={<FileText className="w-6 h-6 text-orange-600" />}
           color="bg-orange-100"
           trend={{ value: 15, label: '较上周', isUp: true }}
+        />
+      </div>
+
+      {/* 7天趋势图表 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <SevenDayTrendChart
+          title="用户访问趋势"
+          data={[
+            { day: '周一', value: 120 },
+            { day: '周二', value: 180 },
+            { day: '周三', value: 150 },
+            { day: '周四', value: 220 },
+            { day: '周五', value: 280 },
+            { day: '周六', value: 350 },
+            { day: '周日', value: 320 },
+          ]}
+          color="#3b82f6"
+        />
+        <SevenDayTrendChart
+          title="工单处理趋势"
+          data={[
+            { day: '周一', value: 45 },
+            { day: '周二', value: 52 },
+            { day: '周三', value: 38 },
+            { day: '周四', value: 65 },
+            { day: '周五', value: 58 },
+            { day: '周六', value: 25 },
+            { day: '周日', value: 18 },
+          ]}
+          color="#10b981"
         />
       </div>
 

@@ -33,6 +33,8 @@ interface FileItem {
 }
 
 const CHUNK_SIZE = 5 * 1024 * 1024;
+const MIN_MULTIPART_SIZE = 4 * 1024 * 1024; // 火山引擎TOS要求每个分片至少4MB
+const MIN_FILE_FOR_MULTIPART = 8 * 1024 * 1024; // 文件至少8MB才使用分片上传（确保每个分片>=4MB）
 
 interface PresignedResult {
   success: boolean;
@@ -48,10 +50,11 @@ interface PresignedResult {
   message?: string;
 }
 
-const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'private' }: {
-  onUploadComplete?: (fileId: string, fileName: string) => void;
+const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'private', multiple = true }: {
+  onUploadComplete?: (fileId: string, fileName: string, url?: string) => void;
   category?: string;
   accessLevel?: string;
+  multiple?: boolean;
 }) => {
   const [fileList, setFileList] = useState<FileItem[]>([]);
   const [duplicateModal, setDuplicateModal] = useState<{
@@ -99,16 +102,31 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
 
   const validateFile = (file: File) => {
     const allowedExtensions: Record<string, string[]> = {
-      image: ['.jpg', '.jpeg', '.png', '.webp', '.gif'],
-      video: ['.mp4', '.mov'],
+      image: ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'],
+      video: ['.mp4', '.mov', '.avi', '.webm'],
       archive: ['.zip', '.rar', '.7z'],
+      document: ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', 
+                 '.txt', '.log', '.pdf', '.doc', '.docx', '.xls', '.xlsx', 
+                 '.ppt', '.pptx', '.html', '.htm', '.json', '.zip', '.rar', '.7z'],
     };
 
     const allowedTypes: Record<string, string[]> = {
-      image: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/pjpeg', 'image/x-png'],
-      video: ['video/mp4', 'video/quicktime', 'video/mpeg', 'video/x-msvideo'],
+      image: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/pjpeg', 'image/x-png', 'image/bmp'],
+      video: ['video/mp4', 'video/quicktime', 'video/mpeg', 'video/x-msvideo', 'video/avi', 'video/webm'],
       archive: ['application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed', 
                 'application/octet-stream', 'application/x-zip-compressed'],
+      document: [
+        'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp',
+        'text/plain', 'application/pdf',
+        'application/msword', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/html', 'application/json',
+        'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed',
+      ],
     };
 
     const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
@@ -123,6 +141,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
       image: 20 * 1024 * 1024,
       video: 200 * 1024 * 1024,
       archive: 2 * 1024 * 1024 * 1024,
+      document: 50 * 1024 * 1024,
     };
 
     const maxSize = sizeLimits[category] || 2 * 1024 * 1024 * 1024;
@@ -159,18 +178,26 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
     try {
       const result = await getPresignedUrl(file, sha256);
       
-      if (!result.success && result.duplicate) {
-        setFileList(prev => prev.map(item =>
-          item.uid === fileItem.uid ? { 
-            ...item, 
-            status: 'duplicate', 
-            existingFile: result.existingFile 
-          } : item
-        ));
+      if (!result.success) {
+        if (result.duplicate) {
+          setFileList(prev => prev.map(item =>
+            item.uid === fileItem.uid ? { 
+              ...item, 
+              status: 'duplicate', 
+              existingFile: result.existingFile 
+            } : item
+          ));
+        } else {
+          throw new Error(result.message || '获取上传URL失败');
+        }
         return;
       }
 
       const { fileId, presignedUrl } = result;
+
+      if (!fileId || !presignedUrl) {
+        throw new Error('获取上传URL失败');
+      }
 
       setFileList(prev => prev.map(item =>
         item.uid === fileItem.uid ? { ...item, status: 'uploading', fileId, presignedUrl, progress: 0 } : item
@@ -209,12 +236,14 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
         throw new Error(confirmData.message || '确认上传失败');
       }
 
+      const downloadUrl = confirmData.file?.downloadUrl;
+
       setFileList(prev => prev.map(item =>
         item.uid === fileItem.uid ? { ...item, status: 'done', progress: 100 } : item
       ));
 
       if (onUploadComplete) {
-        onUploadComplete(fileId, file.name);
+        onUploadComplete(fileId, file.name, downloadUrl);
       }
 
     } catch (error) {
@@ -228,7 +257,8 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
   const uploadLargeFile = async (fileItem: FileItem, file: File, sha256: string | null) => {
     try {
       const token = localStorage.getItem('token');
-      const parts = Math.ceil(file.size / CHUNK_SIZE);
+      // 计算分片数，确保每个分片至少4MB（火山引擎TOS要求）
+      const parts = Math.max(2, Math.ceil(file.size / CHUNK_SIZE));
 
       // 步骤1：初始化分片，拿到所有分片预签名地址
       const initResponse = await fetch('/api/presigned/multipart/init', {
@@ -357,12 +387,14 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
         throw new Error(completeData.message || '完成分片上传失败');
       }
 
+      const downloadUrl = completeData.file?.downloadUrl;
+
       setFileList(prev => prev.map(item =>
         item.uid === fileItem.uid ? { ...item, status: 'done', progress: 100 } : item
       ));
 
       if (onUploadComplete) {
-        onUploadComplete(fileId, file.name);
+        onUploadComplete(fileId, file.name, downloadUrl);
       }
 
     } catch (error) {
@@ -407,7 +439,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
       try {
         const sha256 = await calculateSHA256(file);
 
-        if (file.size > CHUNK_SIZE) {
+        if (file.size >= MIN_FILE_FOR_MULTIPART) {
           setFileList(prev => prev.map(item =>
             item.uid === newItem.uid ? { ...item, sha256, status: 'uploading', progress: 0 } : item
           ));
@@ -448,6 +480,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
       input.type = 'file';
       input.accept = category === 'image' ? 'image/jpeg,image/png,image/webp,image/gif' :
                      category === 'video' ? 'video/mp4,video/quicktime' :
+                     category === 'document' ? 'image/*,.txt,.log,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z' :
                      '.zip,.rar,.7z';
       input.onchange = (e) => {
         const files = (e.target as HTMLInputElement).files;
@@ -527,9 +560,10 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
       <input
         ref={fileInputRef}
         type="file"
-        multiple
+        multiple={multiple}
         accept={category === 'image' ? 'image/jpeg,image/png,image/webp,image/gif' :
                  category === 'video' ? 'video/mp4,video/quicktime' :
+                 category === 'document' ? 'image/*,.txt,.log,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z' :
                  '.zip,.rar,.7z'}
         onChange={handleFilesSelected}
         className="hidden"

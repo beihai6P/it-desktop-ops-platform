@@ -112,6 +112,14 @@ const CaseSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isEssence: {
+    type: Boolean,
+    default: false
+  },
+  isPinned: {
+    type: Boolean,
+    default: false
+  },
   likes: {
     type: Number,
     default: 0
@@ -126,7 +134,32 @@ const CaseSchema = new mongoose.Schema({
     storagePath: String,
     mimeType: String,
     size: Number
-  }]
+  }],
+  troubleshootingImages: [{
+    name: String,
+    url: String,
+    storagePath: String,
+    mimeType: String,
+    size: Number
+  }],
+  causeAnalysisImages: [{
+    name: String,
+    url: String,
+    storagePath: String,
+    mimeType: String,
+    size: Number
+  }],
+  solutionImages: [{
+    name: String,
+    url: String,
+    storagePath: String,
+    mimeType: String,
+    size: Number
+  }],
+  troubleshooting: {
+    type: String,
+    trim: true
+  }
 });
 
 module.exports = mongoose.model('Case', CaseSchema);

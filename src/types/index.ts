@@ -6,6 +6,14 @@ export interface CaseStep {
   expectedResult?: string;
 }
 
+export interface CaseImage {
+  name: string;
+  url: string;
+  storagePath?: string;
+  mimeType?: string;
+  size?: number;
+}
+
 export interface Case {
   id: string;
   title: string;
@@ -25,12 +33,15 @@ export interface Case {
   authorId: string;
   symptoms: string[];
   causeAnalysis: string;
+  troubleshooting?: string;
   solution: string;
   steps: CaseStep[];
   relatedCases: string[];
   tags: string[];
   difficulty: 'easy' | 'medium' | 'hard';
   verification: boolean;
+  isEssence?: boolean;
+  isPinned?: boolean;
   likes: number;
   comments: number;
   isLiked?: boolean;
@@ -38,6 +49,9 @@ export interface Case {
   quality?: 'verified' | 'standard' | 'basic';
   visibility?: 'public' | 'internal' | 'private';
   attachments?: Attachment[];
+  troubleshootingImages?: CaseImage[];
+  causeAnalysisImages?: CaseImage[];
+  solutionImages?: CaseImage[];
 }
 
 export interface Attachment {

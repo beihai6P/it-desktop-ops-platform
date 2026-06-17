@@ -97,6 +97,8 @@ export const caseAPI = {
   delete: (id: string) => api.delete(`/cases/${id}`),
   like: (id: string) => api.post(`/cases/${id}/like`),
   bookmark: (id: string) => api.post(`/cases/${id}/bookmark`),
+  toggleEssence: (id: string) => api.post(`/cases/${id}/essence`),
+  togglePin: (id: string) => api.post(`/cases/${id}/pin`),
   getStats: () => api.get('/cases/stats'),
 };
 

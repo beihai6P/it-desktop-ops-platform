@@ -1,15 +1,15 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search, Filter, Eye, MessageSquare,
   Monitor, Wifi, HardDrive, Printer, Cloud, Shield, FileText, Cpu,
   Sparkles, Calendar,
-  ThumbsUp, Loader2, PlusCircle
+  ThumbsUp, Loader2, PlusCircle, Crown, Pin, Trash2
 } from 'lucide-react';
 import type { Case, CaseCategory, SortRule, QualityFilter, CaseStats, TrendDataPoint } from '@/types';
-import CaseDetail from '@/components/CaseDetail';
 import CaseSubmit from '@/components/CaseSubmit';
 import AIDiagnosisAssistant from '@/components/AIDiagnosisAssistant';
-import LineChart from '@/components/Charts/LineChart';
+import { useAuth } from '@/contexts/AuthContext';
 import { caseAPI } from '@/services/api';
 
 const categoryIcons: Record<CaseCategory, React.ElementType> = {
@@ -48,8 +48,11 @@ const severityColors = {
 };
 
 export default function Diagnosis() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.isAdmin;
+  
   const [cases, setCases] = useState<Case[]>([]);
-  const [selectedCase, setSelectedCase] = useState<Case | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<CaseCategory>('all');
   const [sortRule, setSortRule] = useState<SortRule>('latest');
@@ -57,7 +60,6 @@ export default function Diagnosis() {
   const [stats, setStats] = useState<CaseStats | null>(null);
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const detailRef = useRef<HTMLDivElement>(null);
@@ -67,19 +69,13 @@ export default function Diagnosis() {
     loadStats();
   }, []);
 
-  useEffect(() => {
-    if (selectedCase) {
-      setShowDetailModal(true);
-    }
-  }, [selectedCase]);
-
   const loadCases = async () => {
     setLoading(true);
     try {
       const response = await caseAPI.getAll({ limit: 50 });
-      if (response.data.success) {
-        setCases(response.data.data);
-        setTrendData(generateTrendData(response.data.data));
+      if (response.data.cases) {
+        setCases(response.data.cases);
+        setTrendData(generateTrendData(response.data.cases));
       }
     } catch (error) {
       console.error('Failed to load cases:', error);
@@ -106,7 +102,7 @@ export default function Diagnosis() {
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
       const count = data.filter(c => c.createdAt.startsWith(dateStr)).length;
-      last7Days.push({ date: dateStr, count, label: `${date.getMonth() + 1}/${date.getDate()}` });
+      last7Days.push({ date: dateStr, value: count, label: `${date.getMonth() + 1}/${date.getDate()}` });
     }
     return last7Days;
   };
@@ -149,13 +145,10 @@ export default function Diagnosis() {
 
   const handleSubmit = async (data: Case) => {
     try {
-      const response = await caseAPI.create(data);
-      if (response.data.success) {
-        loadCases();
-        setShowSubmitModal(false);
-      }
+      loadCases();
+      setShowSubmitModal(false);
     } catch (error) {
-      console.error('Failed to submit case:', error);
+      console.error('Failed to refresh cases:', error);
     }
   };
 
@@ -186,6 +179,49 @@ export default function Diagnosis() {
       );
     } catch (error) {
       console.error('Failed to bookmark case:', error);
+    }
+  }, []);
+
+  const handleDelete = useCallback(async (caseId: string) => {
+    if (!window.confirm('确定要删除这个案例吗？此操作将同时删除相关附件，且无法撤销。')) {
+      return;
+    }
+    
+    try {
+      await caseAPI.delete(caseId);
+      setCases(prev => prev.filter(c => c.id !== caseId));
+    } catch (error) {
+      console.error('Failed to delete case:', error);
+    }
+  }, []);
+
+  const handleToggleEssence = useCallback(async (caseId: string) => {
+    try {
+      const response = await caseAPI.toggleEssence(caseId);
+      setCases(prev =>
+        prev.map(c =>
+          c.id === caseId
+            ? { ...c, isEssence: response.data.isEssence }
+            : c
+        )
+      );
+    } catch (error) {
+      console.error('Failed to toggle essence:', error);
+    }
+  }, []);
+
+  const handleTogglePin = useCallback(async (caseId: string) => {
+    try {
+      const response = await caseAPI.togglePin(caseId);
+      setCases(prev =>
+        prev.map(c =>
+          c.id === caseId
+            ? { ...c, isPinned: response.data.isPinned }
+            : c
+        )
+      );
+    } catch (error) {
+      console.error('Failed to toggle pin:', error);
     }
   }, []);
 
@@ -367,13 +403,6 @@ export default function Diagnosis() {
               </div>
 
               <div className="flex-1">
-                <div className="bg-white rounded-xl border border-primary/10 p-4 mb-4">
-                  <h3 className="font-semibold text-theme-text mb-4">7天趋势</h3>
-                  <div className="h-40">
-                    <LineChart data={trendData} />
-                  </div>
-                </div>
-
                 <div className="space-y-3">
                   {loading ? (
                     <div className="flex items-center justify-center py-12">
@@ -395,18 +424,30 @@ export default function Diagnosis() {
                       <div
                         key={caseItem.id}
                         className="bg-white rounded-xl border border-primary/10 p-4 hover:border-primary/30 hover:shadow-md transition-all cursor-pointer"
-                        onClick={() => setSelectedCase(caseItem)}
+                        onClick={() => navigate(`/diagnosis/${caseItem.id}`)}
                       >
                         <div className="flex items-start gap-4">
                           <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                             {(() => {
-                              const Icon = categoryIcons[caseItem.category];
+                              const Icon = categoryIcons[caseItem.category] || Cpu;
                               return <Icon className="w-6 h-6 text-primary" />;
                             })()}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="font-semibold text-theme-text truncate">{caseItem.title}</h4>
+                              {caseItem.isPinned && (
+                                <span className="px-2 py-0.5 rounded text-xs bg-red-100 text-red-700 flex items-center gap-1">
+                                  <Pin className="w-3 h-3" />
+                                  置顶
+                                </span>
+                              )}
+                              {caseItem.isEssence && (
+                                <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700 flex items-center gap-1">
+                                  <Crown className="w-3 h-3" />
+                                  精华
+                                </span>
+                              )}
                               <span className={`px-2 py-0.5 rounded text-xs border ${severityColors[caseItem.severity]}`}>
                                 {caseItem.severity}
                               </span>
@@ -455,6 +496,56 @@ export default function Diagnosis() {
                             >
                               <ThumbsUp className="w-4 h-4" />
                             </button>
+                            {isAdmin && (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleTogglePin(caseItem.id);
+                                  }}
+                                  className={`p-2 rounded-lg transition-colors ${
+                                    caseItem.isPinned ? 'bg-red-100 text-red-600' : 'hover:bg-gray-50'
+                                  }`}
+                                  title={caseItem.isPinned ? '取消置顶' : '置顶'}
+                                >
+                                  <Pin className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleEssence(caseItem.id);
+                                  }}
+                                  className={`p-2 rounded-lg transition-colors ${
+                                    caseItem.isEssence ? 'bg-yellow-100 text-yellow-600' : 'hover:bg-gray-50'
+                                  }`}
+                                  title={caseItem.isEssence ? '取消精华' : '加精'}
+                                >
+                                  <Crown className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(caseItem.id);
+                                  }}
+                                  className="p-2 rounded-lg transition-colors hover:bg-red-50 text-red-500"
+                                  title="删除"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                            {!isAdmin && caseItem.authorId === user?.id && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(caseItem.id);
+                                }}
+                                className="p-2 rounded-lg transition-colors hover:bg-red-50 text-red-500"
+                                title="删除"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -466,18 +557,6 @@ export default function Diagnosis() {
           </div>
         </div>
       </div>
-
-      {showDetailModal && selectedCase && (
-        <CaseDetail
-          case={selectedCase}
-          onClose={() => {
-            setShowDetailModal(false);
-            setSelectedCase(null);
-          }}
-          onLike={handleLike}
-          onBookmark={handleBookmark}
-        />
-      )}
 
       {showSubmitModal && (
         <CaseSubmit

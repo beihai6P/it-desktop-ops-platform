@@ -21,6 +21,7 @@ import ToolDetailPage from '@/pages/ToolDetailPage';
 import DocumentDetailPage from '@/pages/DocumentDetailPage';
 import PostDetailPage from '@/pages/PostDetailPage';
 import SessionDetailPage from '@/pages/SessionDetailPage';
+import CaseDetailPage from '@/pages/CaseDetailPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -124,6 +125,12 @@ function AppRoutes() {
           <MainLayout>
             <Diagnosis />
           </MainLayout>
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/diagnosis/:id" element={
+        <ProtectedRoute>
+          <CaseDetailPage />
         </ProtectedRoute>
       } />
       

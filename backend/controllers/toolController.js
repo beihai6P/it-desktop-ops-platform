@@ -107,32 +107,48 @@ const createTool = async (req, res) => {
       stars: 0
     };
 
-    // 处理截图上传（通过预签名URL方式）
-    console.log('[工具创建] req.files:', req.files);
+    console.log('[工具创建] 请求体:', JSON.stringify(Object.keys(body)));
+    console.log('[工具创建] req.files:', req.files ? req.files.length : 'undefined');
     console.log('[工具创建] body.screenshots:', body.screenshots);
     
     // upload.array('screenshots') 会将文件放在 req.files 数组中
     const screenshots = Array.isArray(req.files) ? req.files.filter(f => f.fieldname === 'screenshots') : [];
     
+    console.log('[工具创建] 筛选后的截图文件:', screenshots.length, '个');
+    
     if (screenshots.length > 0) {
       console.log('[工具创建] 找到截图文件:', screenshots.length, '个');
       
-      for (const screenshot of screenshots) {
+      for (let i = 0; i < screenshots.length; i++) {
+        const screenshot = screenshots[i];
         const file = screenshot;
+        
+        console.log(`[工具创建] 处理截图 ${i+1}:`);
+        console.log(`[工具创建]   - originalname: ${file.originalname}`);
+        console.log(`[工具创建]   - mimetype: ${file.mimetype}`);
+        console.log(`[工具创建]   - size: ${file.size} bytes`);
+        console.log(`[工具创建]   - fieldname: ${file.fieldname}`);
+        console.log(`[工具创建]   - buffer: ${file.buffer ? `Buffer(${file.buffer.length} bytes)` : 'null'}`);
+        
         const ext = file.originalname.split('.').pop()?.toLowerCase();
         // 使用时间戳+随机字符串作为文件名，避免中文文件名的编码问题
         const safeFilename = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${ext}`;
         const objectKey = `uploads/images/${safeFilename}`;
-        console.log('[工具创建] 上传截图:', objectKey);
+        console.log(`[工具创建] 上传截图 ${i+1}: ${objectKey}`);
 
-        // 上传截图到火山引擎对象存储
-        const result = await storageAdapter.putObject(objectKey, file.buffer, {
-          contentType: file.mimetype || `image/${ext}`
-        });
-        console.log('[工具创建] 截图上传成功:', objectKey);
+        try {
+          // 上传截图到火山引擎对象存储
+          const result = await storageAdapter.putObject(objectKey, file.buffer, {
+            contentType: file.mimetype || `image/${ext}`
+          });
+          console.log(`[工具创建] 截图 ${i+1} 上传成功: ${objectKey}`);
 
-        // 保存截图的key，通过后端代理访问
-        toolData.screenshots.push(objectKey);
+          // 保存截图的key，通过后端代理访问
+          toolData.screenshots.push(objectKey);
+        } catch (uploadError) {
+          console.error(`[工具创建] 截图 ${i+1} 上传失败:`, uploadError);
+          throw new Error(`截图上传失败: ${uploadError.message}`);
+        }
       }
     } else if (body.screenshots && Array.isArray(body.screenshots)) {
       // 兼容旧格式：如果已经是URL数组，直接使用
@@ -145,7 +161,8 @@ const createTool = async (req, res) => {
     const tool = await Tool.create(toolData);
     res.status(201).json({ tool });
   } catch (error) {
-    console.error('创建工具失败:', error);
+    console.error('[工具创建] 错误:', error);
+    console.error('[工具创建] 错误堆栈:', error.stack);
     res.status(500).json({ message: '服务器错误', error: error.message });
   }
 };

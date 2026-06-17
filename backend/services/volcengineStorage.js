@@ -66,6 +66,14 @@ class VolcengineStorage {
   }
 
   /**
+   * 获取对象的公共URL
+   * @param {string} key - 对象键
+   */
+  getObjectUrl(key) {
+    return `https://${this.bucket}.${this.endpoint}/${key}`;
+  }
+
+  /**
    * 上传文件
    * @param {string} key - 对象键
    * @param {Buffer|Stream|string} data - 文件数据
