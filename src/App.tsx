@@ -111,13 +111,9 @@ function AppRoutes() {
       
       <Route path="/" element={
         isAuthenticated ? (
-          isAdmin ? (
-            <Navigate to="/home" replace />
-          ) : (
-            <MainLayout>
-              <PublicHome />
-            </MainLayout>
-          )
+          <MainLayout>
+            <PublicHome />
+          </MainLayout>
         ) : (
           <PublicHome />
         )

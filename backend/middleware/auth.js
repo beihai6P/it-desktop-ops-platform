@@ -7,6 +7,7 @@ const protect = async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       token = req.headers.authorization.split(' ')[1];
+      console.log('[Auth] 收到请求:', req.method, req.path, 'Token:', token ? '存在' : '不存在');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = await User.findById(decoded.id).select('-password');
       
@@ -22,12 +23,14 @@ const protect = async (req, res, next) => {
       
       next();
     } catch (error) {
+      console.error('[Auth] Token验证失败:', error.message);
       res.status(401).json({ message: '未授权，token无效' });
       return;
     }
   }
 
   if (!token) {
+    console.warn('[Auth] 没有提供token:', req.method, req.path);
     res.status(401).json({ message: '未授权，没有token' });
     return;
   }

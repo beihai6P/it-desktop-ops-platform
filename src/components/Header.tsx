@@ -16,7 +16,7 @@ interface MenuItem {
 export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, hasPermission } = useAuth();
+  const { user, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
@@ -27,8 +27,6 @@ export default function Header() {
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = user?.isAdmin || user?.role === 'admin';
-  const showUserManagement = isAdmin || hasPermission('USER_VIEW');
-  const showRoleManagement = isAdmin || hasPermission('ROLE_MANAGE');
 
   // 用户菜单项
   const userMenuItems: MenuItem[] = [
@@ -43,6 +41,7 @@ export default function Header() {
 
   // 管理员菜单项
   const adminMenuItems: MenuItem[] = [
+    { id: 'user-home', label: '用户首页', icon: Home, path: '/' },
     { id: 'dashboard', label: '管理后台', icon: LayoutDashboard, path: '/home' },
     { id: 'analytics', label: '数据洞察', icon: BarChart3, path: '/analytics' },
     { id: 'review', label: '内容审核', icon: CheckSquare, path: '/admin/review' },

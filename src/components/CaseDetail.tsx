@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  X, ThumbsUp, MessageSquare, Eye, Calendar, CheckCircle, Star, AlertCircle,
-  Clock, ChevronRight, Bookmark, Share2, Download, Copy, Send,
-  User, Monitor, Wifi, HardDrive, Printer, Cloud, Shield, FileText,
-  BookOpen, Lightbulb, ExternalLink, ChevronDown, ChevronUp, Printer as PrinterIcon
+  X, ThumbsUp, MessageSquare, Eye, Calendar, CheckCircle, AlertCircle,
+  Bookmark, Share2, Download, Copy, Send,
+  User, FileText,
+  BookOpen, Lightbulb, ChevronDown, ChevronUp
 } from 'lucide-react';
 import type { Case, CaseComment, CaseReply } from '@/types';
 import { mockComments } from '@/data/mockData';

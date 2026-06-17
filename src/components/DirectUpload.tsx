@@ -75,18 +75,22 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
 
   const calculateSHA256 = async (file: File): Promise<string | null> => {
     try {
-      const crypto = window.crypto || (window as any).msCrypto;
+      const cryptoObj = window.crypto || (window as unknown as { msCrypto?: Crypto }).msCrypto;
+      const fileSize = file.size;
       
-      const maxHashSize = 50 * 1024 * 1024;
-      
-      if (file.size > maxHashSize) {
+      // 对于超过10MB的文件，跳过客户端计算，由后端处理
+      // 这样可以避免大文件导致的UI阻塞
+      if (fileSize > 10 * 1024 * 1024) {
+        console.log(`[指纹计算] 文件(${fileSize / 1024 / 1024}MB)，跳过客户端计算，由后端处理`);
         return null;
       }
       
+      // 对于小文件，直接计算完整哈希
       const arrayBuffer = await file.arrayBuffer();
-      const digest = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const digest = await cryptoObj.subtle.digest('SHA-256', arrayBuffer);
       const hashArray = Array.from(new Uint8Array(digest));
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
     } catch (error) {
       console.error('计算SHA256失败:', error);
       return null;
@@ -226,6 +230,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
       const token = localStorage.getItem('token');
       const parts = Math.ceil(file.size / CHUNK_SIZE);
 
+      // 步骤1：初始化分片，拿到所有分片预签名地址
       const initResponse = await fetch('/api/presigned/multipart/init', {
         method: 'POST',
         headers: {
@@ -245,59 +250,92 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
 
       const initData = await initResponse.json();
       
-      if (!initData.success && initData.duplicate) {
-        setFileList(prev => prev.map(item =>
-          item.uid === fileItem.uid ? { 
-            ...item, 
-            status: 'duplicate', 
-            existingFile: initData.existingFile 
-          } : item
-        ));
+      if (!initData.success) {
+        if (initData.duplicate) {
+          setFileList(prev => prev.map(item =>
+            item.uid === fileItem.uid ? { 
+              ...item, 
+              status: 'duplicate', 
+              existingFile: initData.existingFile 
+            } : item
+          ));
+        } else {
+          setFileList(prev => prev.map(item =>
+            item.uid === fileItem.uid ? { 
+              ...item, 
+              status: 'error', 
+              error: initData.message || '初始化分片上传失败' 
+            } : item
+          ));
+        }
         return;
       }
 
       const { fileId, uploadId, partUrls } = initData;
 
+      if (!fileId || !uploadId || !partUrls || !Array.isArray(partUrls)) {
+        throw new Error('初始化分片上传失败：缺少必要参数');
+      }
+
       setFileList(prev => prev.map(item =>
         item.uid === fileItem.uid ? { ...item, status: 'uploading', fileId, progress: 0 } : item
       ));
 
-      const partResults = [];
-      let uploadedBytes = 0;
+      // 步骤2：循环上传每一个分片（前端直传TOS，不走后端代理）
+      const uploadedParts: Array<{ PartNumber: number; ETag: string }> = [];
+      const chunkSize = Math.ceil(file.size / partUrls.length);
 
-      for (let i = 0; i < parts; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
+      console.log(`[分片上传] 开始上传 ${partUrls.length} 个分片，总大小: ${file.size} bytes`);
+      console.log(`[分片上传] uploadId: ${uploadId}`);
+      console.log(`[分片上传] fileId: ${fileId}`);
+
+      for (let i = 0; i < partUrls.length; i++) {
+        const partItem = partUrls[i];
+        const start = i * chunkSize;
+        const end = Math.min(start + chunkSize, file.size);
         const chunk = file.slice(start, end);
 
-        const partUrl = partUrls[i]?.url;
-        if (!partUrl) {
-          throw new Error(`分片${i + 1}的URL不存在`);
-        }
-        const response = await fetch(partUrl, {
+        console.log(`[分片上传] 开始上传分片 ${i + 1}/${partUrls.length}, partNumber: ${partItem.partNumber}, 大小: ${chunk.size} bytes`);
+        
+        // 直接调用TOS预签名URL上传分片，不走后端代理
+        const putResponse = await fetch(partItem.url, {
           method: 'PUT',
           body: chunk,
           headers: {
-            'Content-Type': file.type,
+            'Content-Type': '',
           },
         });
 
-        if (!response.ok) {
-          throw new Error(`分片${i + 1}上传失败`);
-        }
+        console.log(`[分片上传] 分片 ${i + 1} PUT请求完成，status: ${putResponse.status}`);
 
-        const etag = response.headers.get('ETag');
-        partResults.push({
-          partNumber: i + 1,
-          etag: etag?.replace(/"/g, '') || '',
+        if (!putResponse.ok) {
+          const errorText = `HTTP ${putResponse.status}`;
+          console.error(`[分片上传] 分片 ${i + 1} 上传失败: ${errorText}`);
+          throw new Error(`分片 ${i + 1} 上传失败: ${errorText}`);
+        }
+        
+        // 清洗ETag双引号
+        const etag = (putResponse.headers.get('etag') || '').replace(/"/g, '');
+        console.log(`[分片上传] 分片 ${i + 1} ETag: ${etag}`);
+        
+        uploadedParts.push({
+          PartNumber: partItem.partNumber,
+          ETag: etag,
         });
 
-        uploadedBytes += chunk.size;
-        const progress = Math.round((uploadedBytes / file.size) * 100);
-
+        // 更新上传进度
+        const progress = Math.round(((i + 1) / partUrls.length) * 100);
         setFileList(prev => prev.map(item =>
           item.uid === fileItem.uid ? { ...item, progress } : item
         ));
+      }
+
+      // 步骤3：所有分片上传完毕，再调用complete合并
+      console.log(`[分片上传] 所有分片上传完成，准备调用complete，上传结果数: ${uploadedParts.length}`);
+      console.log(`[分片上传] 传给complete的参数`, { fileId, uploadId, partData: uploadedParts });
+
+      if (uploadedParts.length === 0) {
+        throw new Error('没有任何分片上传成功，无法完成合并');
       }
 
       const completeResponse = await fetch('/api/presigned/multipart/complete', {
@@ -309,7 +347,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
         body: JSON.stringify({
           fileId,
           uploadId,
-          parts: partResults,
+          partData: uploadedParts,
           hash: { sha256, md5: '' },
         }),
       });

@@ -119,7 +119,14 @@ const CaseSchema = new mongoose.Schema({
   comments: {
     type: Number,
     default: 0
-  }
+  },
+  attachments: [{
+    name: String,
+    url: String,
+    storagePath: String,
+    mimeType: String,
+    size: Number
+  }]
 });
 
 module.exports = mongoose.model('Case', CaseSchema);

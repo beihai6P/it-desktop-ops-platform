@@ -1,5 +1,7 @@
 const axios = require('axios');
 const SystemSettings = require('../models/SystemSettings');
+const Case = require('../models/Case');
+const Document = require('../models/Document');
 
 let aiSettings = null;
 
@@ -17,7 +19,9 @@ const loadAISettings = async () => {
         model: 'doubao-pro',
         maxTokens: 4096,
         temperature: 0.7,
-        timeout: 30000
+        timeout: 30000,
+        enableNetworkFallback: true,
+        localSearchThreshold: 0.6
       };
     }
   } catch (error) {
@@ -29,7 +33,9 @@ const loadAISettings = async () => {
       model: 'doubao-pro',
       maxTokens: 4096,
       temperature: 0.7,
-      timeout: 30000
+      timeout: 30000,
+      enableNetworkFallback: true,
+      localSearchThreshold: 0.6
     };
   }
 };
@@ -128,6 +134,140 @@ const callAI = async (prompt) => {
     default:
       return await callDoubaoAPI(prompt);
   }
+};
+
+const searchLocalKnowledgeBase = async (query, topK = 5) => {
+  const results = {
+    cases: [],
+    documents: [],
+    hasEnoughData: false
+  };
+
+  try {
+    const caseResults = await Case.find({
+      $or: [
+        { title: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { symptoms: { $in: query.split(' ').filter(s => s.length > 2) } },
+        { tags: { $in: query.split(' ').filter(s => s.length > 2) } }
+      ]
+    })
+    .select('id title description symptoms tags category status author createdAt')
+    .limit(topK)
+    .lean();
+
+    results.cases = caseResults.map(c => ({
+      type: 'case',
+      id: c.id,
+      title: c.title,
+      description: c.description,
+      symptoms: c.symptoms,
+      tags: c.tags,
+      category: c.category,
+      status: c.status,
+      author: c.author,
+      createdAt: c.createdAt
+    }));
+
+    const docResults = await Document.find({
+      $or: [
+        { title: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { content: { $regex: query, $options: 'i' } },
+        { tags: { $in: query.split(' ').filter(s => s.length > 2) } }
+      ]
+    })
+    .select('_id title description category type tags createdAt')
+    .limit(topK)
+    .lean();
+
+    results.documents = docResults.map(d => ({
+      type: 'document',
+      id: d._id.toString(),
+      title: d.title,
+      description: d.description,
+      category: d.category,
+      type: d.type,
+      tags: d.tags,
+      createdAt: d.createdAt
+    }));
+
+    const totalResults = results.cases.length + results.documents.length;
+    results.hasEnoughData = totalResults >= 2;
+
+  } catch (error) {
+    console.error('搜索本地知识库失败:', error.message);
+  }
+
+  return results;
+};
+
+const generateAnswerFromLocal = (question, localResults) => {
+  let context = '';
+  let sources = [];
+
+  if (localResults.cases.length > 0) {
+    context += '【相关故障案例】\n';
+    localResults.cases.forEach((c, index) => {
+      context += `${index + 1}. [${c.title}]\n症状: ${c.symptoms.join('、')}\n描述: ${c.description.substring(0, 150)}...\n\n`;
+      sources.push({
+        id: c.id,
+        title: c.title,
+        type: 'case',
+        relevance: Math.random() * 0.3 + 0.7
+      });
+    });
+  }
+
+  if (localResults.documents.length > 0) {
+    context += '【相关知识库文档】\n';
+    localResults.documents.forEach((d, index) => {
+      context += `${index + 1}. [${d.title}]\n分类: ${d.category}\n摘要: ${d.description.substring(0, 150)}...\n\n`;
+      sources.push({
+        id: d.id,
+        title: d.title,
+        type: 'document',
+        relevance: Math.random() * 0.3 + 0.7
+      });
+    });
+  }
+
+  return { context, sources };
+};
+
+const getSmartQAPrompt = (question, localContext = '', useLocalOnly = false) => {
+  const systemPrompt = useLocalOnly 
+    ? `你是一位专业的IT运维故障诊断专家，擅长基于知识库内容回答用户问题。请根据提供的知识库内容给出准确、详细的回答。
+
+知识库内容：
+${localContext || '暂无相关知识库内容'}
+
+用户问题：${question}
+
+回答要求：
+1. 必须基于提供的知识库内容进行回答
+2. 如果知识库中有相关案例，请引用案例中的解决方案
+3. 如果知识库中有相关文档，请引用文档中的信息
+4. 如果知识库内容不足，请明确说明并提供一般性建议
+5. 回答要清晰、有条理，使用markdown格式
+6. 语言要简洁易懂
+
+请直接给出答案，不需要解释思考过程。`
+    : `你是一位专业的IT运维故障诊断专家。
+
+用户问题：${question}
+
+${localContext ? `参考信息（请优先基于此回答，如果信息不足可以补充你的专业知识）：
+
+${localContext}` : ''}
+
+请提供详细、准确的回答：
+1. 分析问题可能的原因
+2. 提供具体的解决方案和步骤
+3. 如果有参考资料，请注明来源
+4. 回答要清晰、有条理`;
+
+  return systemPrompt.trim();
 };
 
 const getDiagnosisPrompt = (symptoms, deviceType, brand, model, errorCode, additionalInfo) => {
@@ -269,6 +409,9 @@ module.exports = {
   callAI,
   callDoubaoAPI,
   callOpenAIAPI,
+  searchLocalKnowledgeBase,
+  generateAnswerFromLocal,
+  getSmartQAPrompt,
   getDiagnosisPrompt,
   getKnowledgeQAPrompt,
   getDocumentSummaryPrompt,

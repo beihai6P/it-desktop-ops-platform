@@ -57,6 +57,20 @@ class StorageAdapter {
     return this.volcengineStorage.getSignedUrl(key, expiresIn);
   }
 
+  /**
+   * 生成预签名URL（支持各种操作类型）
+   * @param {object} options - 选项
+   * @param {string} options.key - 对象键
+   * @param {string} options.operation - 操作类型: put, get, uploadPart
+   * @param {string} [options.contentType] - 内容类型（用于put操作）
+   * @param {number} [options.expiresIn] - 过期时间（秒）
+   * @param {string} [options.uploadId] - 分片上传ID（用于uploadPart）
+   * @param {number} [options.partNumber] - 分片编号（用于uploadPart）
+   */
+  async getPresignedUrl(options) {
+    return await this.volcengineStorage.getPresignedUrl(options);
+  }
+
   async objectExists(key) {
     const info = await this.getObjectInfo(key);
     return info !== null;

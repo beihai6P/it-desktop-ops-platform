@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Send, Plus, Trash2, Monitor, Wifi, HardDrive, Printer, Cloud, Shield, FileText, Cpu, Save, BookOpen, ChevronRight } from 'lucide-react';
 import type { Case, CaseCategory, CaseTemplate } from '@/types';
-import { mockCaseTemplates } from '@/data/mockData';
 
 interface CaseSubmitProps {
   onClose: () => void;
@@ -117,7 +116,7 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
     steps: [{ step: 1, title: '', description: '', commands: [''], expectedResult: '' }],
     tags: [''],
     visibility: 'public' as 'public' | 'private',
-    attachments: [] as { name: string; url: string }[],
+    attachments: [] as File[],
   });
 
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
@@ -295,7 +294,7 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
   };
 
   // 提交表单
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return;
 
     const validSymptoms = formData.symptoms.filter((s) => s.trim());
@@ -308,42 +307,95 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
     })).filter((step) => step.title.trim());
     const validTags = formData.tags.filter((t) => t.trim());
 
-    const submitData: Case = {
-      id: `case-${Date.now()}`,
+    const caseData = {
       title: formData.title,
+      description: formData.causeAnalysis || formData.title,
+      category: formData.category,
+      severity: 'medium',
       errorCode: formData.errorCode || '-',
       deviceType: formData.deviceType || '其他',
       brand: formData.brand || '未知',
       model: formData.model || '未知',
       systemVersion: systemVersions.find(v => v.id === formData.systemVersion)?.name || '',
       status: formData.visibility === 'private' ? 'pending' : 'resolved',
-      views: 0,
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0],
-      author: '当前用户',
-      authorId: 'current-user',
       symptoms: validSymptoms,
       causeAnalysis: formData.causeAnalysis,
       solution: formData.solution,
       steps: validSteps,
-      relatedCases: [],
       tags: validTags,
       difficulty: 'medium',
-      verification: false,
-      likes: 0,
-      comments: 0,
-      quality: validSteps.length >= 3 ? 'verified' : 'standard',
       visibility: formData.visibility === 'private' ? 'private' : 'public',
     };
 
-    onSubmit(submitData);
-    
-    // 清除草稿
-    localStorage.removeItem(DRAFT_KEY);
-    
-    setTimeout(() => {
-      onClose();
-    }, 100);
+    const formDataToSubmit = new FormData();
+    formDataToSubmit.append('data', JSON.stringify(caseData));
+
+    if (formData.attachments.length > 0) {
+      for (const file of formData.attachments) {
+        if (file instanceof File) {
+          formDataToSubmit.append('attachments', file);
+        }
+      }
+    }
+
+    try {
+      console.log('[案例提交] 开始提交，附件数量:', formData.attachments.length);
+      console.log('[案例提交] 数据大小:', formDataToSubmit.get('data')?.length || 0, 'bytes');
+      
+      const response = await fetch('http://localhost:5000/api/cases', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formDataToSubmit,
+        mode: 'cors',
+        credentials: 'include'
+      });
+
+      console.log('[案例提交] 响应状态:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[案例提交] 成功:', result);
+        const submitData: Case = {
+          ...result,
+          views: 0,
+          likes: 0,
+          comments: 0,
+          createdAt: new Date().toISOString().split('T')[0],
+          updatedAt: new Date().toISOString().split('T')[0],
+          author: '当前用户',
+          authorId: 'current-user',
+          relatedCases: [],
+          verification: false,
+          quality: validSteps.length >= 3 ? 'verified' : 'standard',
+        };
+        onSubmit(submitData);
+        localStorage.removeItem(DRAFT_KEY);
+        setTimeout(() => {
+          onClose();
+        }, 100);
+      } else {
+        let errorText = '';
+        try {
+          const error = await response.json();
+          errorText = error.errors?.[0]?.msg || error.message || '未知错误';
+        } catch {
+          errorText = await response.text();
+        }
+        console.error('[案例提交] 失败:', response.status, errorText);
+        alert(`提交失败: ${errorText}`);
+      }
+    } catch (error: any) {
+      console.error('[案例提交] 异常:', error.name, error.message);
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        alert('网络连接失败，请检查后端服务是否正常运行');
+      } else if (error.name === 'AbortError') {
+        alert('请求超时，请重试');
+      } else {
+        alert(`提交失败: ${error.message || '未知错误'}`);
+      }
+    }
   };
 
   // 预览草稿
@@ -766,14 +818,10 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
                   <input
                     type="file"
                     multiple
-                    accept="image/*,.txt,.log,.zip"
+                    accept="image/*,.txt,.log,.zip,.pdf,.doc,.docx,.xls,.xlsx,.rar"
                     onChange={(e) => {
                       const files = Array.from(e.target.files || []);
-                      const newAttachments = files.map(f => ({
-                        name: f.name,
-                        url: URL.createObjectURL(f)
-                      }));
-                      setFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...newAttachments] }));
+                      setFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...files] }));
                     }}
                     className="hidden"
                     id="file-upload"
@@ -783,7 +831,7 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
                       <Plus className="w-7 h-7 text-primary" />
                     </div>
                     <p className="text-sm text-theme-text">点击或拖拽上传文件</p>
-                    <p className="text-xs text-text-muted mt-1">支持图片、日志、录屏短片等格式</p>
+                    <p className="text-xs text-text-muted mt-1">支持图片、日志、文档、压缩包等格式（最大50MB）</p>
                   </label>
                   {formData.attachments.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -791,6 +839,11 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
                         <div key={index} className="flex items-center gap-2 px-3 py-1.5 bg-theme-bg rounded-lg">
                           <FileText className="w-4 h-4 text-text-muted" />
                           <span className="text-sm text-theme-text truncate max-w-32">{file.name}</span>
+                          <span className="text-xs text-text-muted">
+                            {file.size > 1024 * 1024 
+                              ? `${(file.size / (1024 * 1024)).toFixed(1)}MB` 
+                              : `${(file.size / 1024).toFixed(1)}KB`}
+                          </span>
                           <button
                             onClick={() => {
                               const newAttachments = formData.attachments.filter((_, i) => i !== index);

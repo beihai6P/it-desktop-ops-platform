@@ -1,11 +1,16 @@
-import { useState } from 'react';
-import { X, Check, Image } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { X, Check, Image, X as XIcon } from 'lucide-react';
 import DirectUpload from './DirectUpload';
 import { toolAPI } from '@/services/api';
 
 interface ToolUploadProps {
   onClose: () => void;
   onSubmit: (data: FormData) => void;
+}
+
+interface ScreenshotItem {
+  file: File;
+  preview: string;
 }
 
 export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
@@ -22,26 +27,35 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
   });
   const [storageFileId, setStorageFileId] = useState<string>('');
   const [fileUploaded, setFileUploaded] = useState(false);
-  const [screenshots, setScreenshots] = useState<File[]>([]);
+  const [screenshots, setScreenshots] = useState<ScreenshotItem[]>([]);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleScreenshotChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const newFiles = Array.from(e.target.files);
+      const newFiles = Array.from(e.target.files).map((file) => ({
+        file,
+        preview: URL.createObjectURL(file),
+      }));
       setScreenshots((prev) => [...prev, ...newFiles]);
     }
-  };
+    if (e.target) {
+      e.target.value = '';
+    }
+  }, []);
 
-  const removeScreenshot = (index: number) => {
-    const newScreenshots = [...screenshots];
-    newScreenshots.splice(index, 1);
+  const removeScreenshot = useCallback((index: number) => {
+    const screenshot = screenshots[index];
+    if (screenshot) {
+      URL.revokeObjectURL(screenshot.preview);
+    }
+    const newScreenshots = screenshots.filter((_, i) => i !== index);
     setScreenshots(newScreenshots);
-  };
+  }, [screenshots]);
 
-  const handleFileUploadComplete = (fileId: string, fileName: string) => {
+  const handleFileUploadComplete = (fileId: string) => {
     setStorageFileId(fileId);
     setFileUploaded(true);
   };
@@ -50,39 +64,54 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
     e.preventDefault();
     
     if (!storageFileId) {
-      alert('请先上传工具文件');
       return;
     }
 
     const typeValue = formData.type;
-    const toolData = {
-      name: formData.name,
-      description: formData.description,
-      longDescription: formData.longDescription,
-      category: formData.category,
-      type: (typeValue === 'script' || typeValue === 'plugin' ? typeValue : 'tool') as 'script' | 'tool' | 'plugin',
-      tags: formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
-      version: formData.version,
-      license: formData.license,
-      compatibility: formData.compatibility.split(',').map((t: string) => t.trim()).filter(Boolean),
-      storageFileId,
-      fileSize: '',
-      downloadUrl: '',
-    };
+    
+    // 使用 FormData 格式上传，包含截图文件
+    const data = new FormData();
+    data.append('name', formData.name);
+    data.append('description', formData.description);
+    data.append('longDescription', formData.longDescription);
+    data.append('category', formData.category);
+    data.append('type', (typeValue === 'script' || typeValue === 'plugin' ? typeValue : 'tool'));
+    data.append('tags', JSON.stringify(formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean)));
+    data.append('version', formData.version);
+    data.append('license', formData.license);
+    data.append('compatibility', JSON.stringify(formData.compatibility.split(',').map((t: string) => t.trim()).filter(Boolean)));
+    data.append('storageFileId', storageFileId);
+
+    // 添加截图文件（multer.array 需要相同字段名）
+    screenshots.forEach((screenshot) => {
+      data.append('screenshots', screenshot.file);
+    });
 
     try {
-      const response = await toolAPI.create(toolData);
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/tools', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: data,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        const errorMessage = errorData?.message || errorData?.error || '创建工具失败';
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.log('工具创建成功:', result);
       alert('工具上传成功！');
       
-      const data = new FormData();
-      data.append('name', formData.name);
-      data.append('storageFileId', storageFileId);
       onSubmit(data);
-      
       onClose();
     } catch (error) {
       console.error('创建工具失败:', error);
-      alert('创建工具失败，请稍后重试');
+      alert(`创建工具失败: ${error.message}`);
     }
   };
 
@@ -270,16 +299,18 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
             </label>
             {screenshots.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
-                {screenshots.map((file, index) => (
+                {screenshots.map((item, index) => (
                   <div key={index} className="relative group">
-                    <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <Image className="w-8 h-8 text-gray-400" />
-                    </div>
+                    <img
+                      src={item.preview}
+                      alt={`截图 ${index + 1}`}
+                      className="w-16 h-16 object-cover rounded-lg"
+                    />
                     <button
                       onClick={() => removeScreenshot(index)}
                       className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                     >
-                      <X className="w-3 h-3" />
+                      <XIcon className="w-3 h-3" />
                     </button>
                   </div>
                 ))}
@@ -297,10 +328,10 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors font-medium"
+              className="flex-1 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors font-medium disabled:bg-gray-300 disabled:cursor-not-allowed disabled:hover:bg-gray-300"
               disabled={!fileUploaded}
             >
-              上传工具
+              {fileUploaded ? '上传工具' : '请先上传工具文件'}
             </button>
           </div>
         </form>

@@ -629,7 +629,7 @@ export default function HardwareConfig({
             </button>
             {expandedSection === 'network' && (
               <div className="px-4 pb-4 space-y-3">
-                {networks.map((net, index) => (
+                {networks.map((net) => (
                   <div key={net.id} className="border border-primary/10 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-medium text-theme-text">{net.name}</span>

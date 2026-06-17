@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Zap, Clock, AlertTriangle, Check, Lock } from 'lucide-react';
+import { Zap, Clock, AlertTriangle, Lock } from 'lucide-react';
 
 interface Fault {
   id: string;
@@ -136,18 +136,8 @@ const timelineFaults: Omit<Fault, 'id' | 'isCompatible' | 'selected'>[] = [
   },
 ];
 
-export default function FaultPanel({ faults, onFaultsChange, osVersion, isLogMode }: FaultPanelProps) {
+export default function FaultPanel({ faults, onFaultsChange, isLogMode }: FaultPanelProps) {
   const [expandedFault, setExpandedFault] = useState<string | null>(null);
-
-  const checkCompatibility = (faultName: string): boolean => {
-    if (osVersion.includes('XP') && faultName.includes('蓝屏')) {
-      return false;
-    }
-    if (osVersion.includes('11') && faultName.includes('运行库缺失')) {
-      return false;
-    }
-    return true;
-  };
 
   const toggleFault = (faultId: string) => {
     onFaultsChange(faults.map(f => 

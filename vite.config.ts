@@ -17,10 +17,21 @@ export default defineConfig({
     tsconfigPaths()
   ],
   server: {
+    host: '0.0.0.0',
+    port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://127.0.0.1:5000',
         changeOrigin: true,
+        secure: false,
+        ws: true,
+        logLevel: 'debug',
+        onProxyReq: (proxyReq, req, res) => {
+          console.log('[Vite Proxy] 请求:', req.method, req.url);
+        },
+        onError: (err, req, res) => {
+          console.error('[Vite Proxy] 错误:', err);
+        }
       },
     },
   },

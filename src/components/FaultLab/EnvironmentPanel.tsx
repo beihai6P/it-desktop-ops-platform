@@ -31,7 +31,7 @@ interface EnvironmentPanelProps {
 export default function EnvironmentPanel({ selectedSystem, onSystemChange }: EnvironmentPanelProps) {
   const [services] = useState<ServiceConfig[]>(defaultServices);
   const [software] = useState<SoftwareConfig[]>(defaultSoftware);
-  const [environmentState, setEnvironmentState] = useState<EnvironmentState>(defaultEnvironmentState);
+  const [environmentState] = useState<EnvironmentState>(defaultEnvironmentState);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

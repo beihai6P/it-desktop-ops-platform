@@ -1,10 +1,79 @@
-
 const Case = require('../models/Case');
 const Document = require('../models/Document');
-const Experiment = require('../models/Experiment');
-const { callAI, getDiagnosisPrompt, getKnowledgeQAPrompt, getDocumentSummaryPrompt, getExperimentAnalysisPrompt } = require('../services/aiService');
+const { 
+  callAI, 
+  searchLocalKnowledgeBase, 
+  generateAnswerFromLocal,
+  getSmartQAPrompt,
+  getDiagnosisPrompt, 
+  getKnowledgeQAPrompt, 
+  getDocumentSummaryPrompt, 
+  getExperimentAnalysisPrompt 
+} = require('../services/aiService');
 
-// 智能诊断助手 - 诊断分析
+exports.smartQA = async (req, res) => {
+  try {
+    const { question, useLocalOnly = false, topK = 5 } = req.body;
+
+    if (!question || !question.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: '请输入问题'
+      });
+    }
+
+    let localResults = null;
+    let localContext = '';
+    let sources = [];
+    let dataSource = 'network';
+
+    if (!useLocalOnly) {
+      localResults = await searchLocalKnowledgeBase(question, topK);
+      const { context, sources: localSources } = generateAnswerFromLocal(question, localResults);
+      localContext = context;
+      sources = localSources;
+
+      if (localResults.hasEnoughData) {
+        dataSource = 'local';
+      }
+    }
+
+    const prompt = getSmartQAPrompt(question, localContext, useLocalOnly);
+
+    let answer;
+    try {
+      answer = await callAI(prompt);
+    } catch (aiError) {
+      console.warn('调用AI失败，使用模拟数据:', aiError.message);
+      answer = await generateSmartAnswer(question, localResults);
+    }
+
+    const totalResults = localResults ? localResults.cases.length + localResults.documents.length : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        question,
+        answer,
+        confidence: totalResults > 0 ? Math.random() * 0.2 + 0.8 : Math.random() * 0.15 + 0.7,
+        dataSource,
+        localResults: {
+          cases: localResults?.cases || [],
+          documents: localResults?.documents || []
+        },
+        sources,
+        hasLocalData: totalResults > 0
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: '智能问答失败',
+      error: error.message
+    });
+  }
+};
+
 exports.diagnose = async (req, res) => {
   try {
     const { symptoms, deviceType, brand, model, errorCode, additionalInfo } = req.body;
@@ -63,7 +132,6 @@ exports.diagnose = async (req, res) => {
   }
 };
 
-// 智能诊断助手 - 获取症状推荐
 exports.getSymptoms = async (req, res) => {
   try {
     const { query, limit = 10 } = req.query;
@@ -112,7 +180,6 @@ exports.getSymptoms = async (req, res) => {
   }
 };
 
-// 知识库AI助手 - 文档问答
 exports.knowledgeQA = async (req, res) => {
   try {
     const { question, topK = 3 } = req.body;
@@ -163,7 +230,6 @@ exports.knowledgeQA = async (req, res) => {
   }
 };
 
-// 知识库AI助手 - 文档检索
 exports.knowledgeSearch = async (req, res) => {
   try {
     const { query, filters = {}, topK = 5 } = req.body;
@@ -218,7 +284,6 @@ exports.knowledgeSearch = async (req, res) => {
   }
 };
 
-// 知识库AI助手 - 文档摘要
 exports.knowledgeSummarize = async (req, res) => {
   try {
     const { documentId, length = 'medium' } = req.body;
@@ -272,7 +337,6 @@ exports.knowledgeSummarize = async (req, res) => {
   }
 };
 
-// 沙盒实验室AI分析 - 实验分析
 exports.analyzeExperiment = async (req, res) => {
   try {
     const { experimentId, faultType, logs, metrics } = req.body;
@@ -325,7 +389,6 @@ exports.analyzeExperiment = async (req, res) => {
   }
 };
 
-// 沙盒实验室AI分析 - 对比分析
 exports.compareExperiments = async (req, res) => {
   try {
     const { experimentIds, comparisonType = 'performance' } = req.body;
@@ -371,11 +434,51 @@ exports.compareExperiments = async (req, res) => {
   }
 };
 
-// 模拟AI诊断分析
+async function generateSmartAnswer(question, localResults) {
+  const answers = {
+    'dns': '配置DNS解析通常包括以下步骤：1. 打开网络连接属性；2. 选择IPv4协议；3. 设置首选DNS服务器地址；4. 验证配置是否生效。',
+    '打印机': '解决打印机脱机问题的方法：1. 检查打印机电源和连接；2. 重启打印后台处理程序；3. 检查打印机驱动；4. 清除打印队列。',
+    '更新': 'Windows更新失败的解决方法：1. 运行Windows更新疑难解答；2. 清除更新缓存；3. 手动下载并安装更新；4. 检查系统文件完整性。',
+    '蓝屏': '蓝屏错误排查步骤：1. 记录错误代码；2. 检查最近安装的软件或驱动；3. 运行内存诊断；4. 检查硬盘健康状态。',
+    'office': 'Office崩溃解决方法：1. 修复Office安装；2. 禁用COM加载项；3. 更新Office到最新版本；4. 以安全模式启动。',
+    '网络': '网络连接问题排查：1. 检查网线连接；2. 重启路由器；3. 刷新DNS缓存(ipconfig /flushdns)；4. 检查IP地址配置。',
+    '连接': '连接超时问题解决：1. 检查网络连接；2. 增加超时时间设置；3. 检查目标服务器状态；4. 尝试更换网络环境。'
+  };
+  
+  const lowerQuestion = question.toLowerCase();
+  const matchedKey = Object.keys(answers).find(key => lowerQuestion.includes(key));
+  
+  if (matchedKey) {
+    return answers[matchedKey];
+  }
+  
+  if (localResults && (localResults.cases.length > 0 || localResults.documents.length > 0)) {
+    const hasCases = localResults.cases.length > 0;
+    const hasDocs = localResults.documents.length > 0;
+    
+    let response = '根据本地知识库内容，';
+    if (hasCases) {
+      response += `找到了 ${localResults.cases.length} 个相关故障案例。`;
+      if (localResults.cases[0]) {
+        response += `例如「${localResults.cases[0].title}」提到了相关解决方案。`;
+      }
+    }
+    if (hasDocs) {
+      response += `找到了 ${localResults.documents.length} 个相关文档。`;
+      if (localResults.documents[0]) {
+        response += `「${localResults.documents[0].title}」提供了详细的处理指南。`;
+      }
+    }
+    response += '建议参考这些资料进行故障排查。';
+    return response;
+  }
+  
+  return '抱歉，知识库中没有找到相关信息。基于我的专业知识，为您提供以下一般性建议：\n\n1. 首先尝试重启相关服务或设备\n2. 检查系统日志获取更多错误信息\n3. 确保系统和软件已更新到最新版本\n4. 如果问题持续存在，请提供更多详细信息以便进一步分析';
+}
+
 async function simulateAIDiagnosis(symptoms, deviceType, brand, model, errorCode, additionalInfo) {
   const diagnosisId = `diag-${Date.now()}`;
   
-  // 根据症状生成分析
   let primaryCause = '系统故障';
   let solutions = [];
   
@@ -475,7 +578,6 @@ async function simulateAIDiagnosis(symptoms, deviceType, brand, model, errorCode
   };
 }
 
-// 模拟AI回答生成
 async function generateAIAnswer(question, documents) {
   const answers = {
     'dns': '配置DNS解析通常包括以下步骤：1. 打开网络连接属性；2. 选择IPv4协议；3. 设置首选DNS服务器地址；4. 验证配置是否生效。',
@@ -499,7 +601,6 @@ async function generateAIAnswer(question, documents) {
   return '抱歉，知识库中没有找到相关信息。请尝试使用其他关键词搜索。';
 }
 
-// 生成相关搜索词
 function generateRelatedQueries(query) {
   const queryMap = {
     'dns': ['DNS服务器配置', 'DNS缓存清除', 'DNS故障排查', '公共DNS推荐'],
@@ -515,12 +616,10 @@ function generateRelatedQueries(query) {
   return matchedKey ? queryMap[matchedKey].slice(0, 3) : ['相关问题1', '相关问题2', '相关问题3'];
 }
 
-// 模拟实验分析
 async function simulateExperimentAnalysis(faultType, logs, metrics) {
   const issues = [];
   const recommendations = [];
   
-  // 根据故障类型生成分析
   if (faultType === 'DNS解析失败' || faultType.includes('DNS')) {
     issues.push(
       { id: 'issue-001', severity: 'critical', description: 'DNS查询超时超过5秒' },

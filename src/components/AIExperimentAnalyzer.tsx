@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { FlaskConical, AlertTriangle, AlertCircle, Info, CheckCircle, TrendingUp, Download, Share2, RefreshCw, BarChart3 } from 'lucide-react';
 import type { Experiment, ExperimentAnalysisResult, ExperimentComparisonResult } from '@/types';

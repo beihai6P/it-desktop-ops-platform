@@ -158,6 +158,10 @@ const ToolSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isPinned: {
+    type: Boolean,
+    default: false
+  },
   // 存储系统相关字段
   storageFileId: {
     type: String,

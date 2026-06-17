@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, Check, Trash2, Clock, MessageSquare, Heart, AtSign, CheckSquare, FileText, Ticket, Send } from 'lucide-react';
+import { Bell, X, Check, Trash2, MessageSquare, Heart, AtSign, CheckSquare, FileText, Ticket, Send } from 'lucide-react';
 import { notificationAPI } from '@/services/api';
 import type { Notification } from '@/types';
 import { logger } from '@/lib/logger';
@@ -67,7 +67,7 @@ export default function NotificationCenter({ isOpen, onClose, unreadCount, onUnr
     try {
       const response = await notificationAPI.getAll({ limit: 50 });
       if (response.data.success) {
-        const normalizedData = response.data.data.map((item: any) => ({
+        const normalizedData = response.data.data.map((item: Notification) => ({
           ...item,
           id: item._id || item.id,
           createdAt: item.createdAt || new Date().toISOString(),

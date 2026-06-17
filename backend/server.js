@@ -1,4 +1,5 @@
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -29,9 +30,11 @@ const { seedData } = require('./utils/seedData');
 const app = express();
 
 app.use(cors({
-  exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length', 'ETag']
+  exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length', 'ETag'],
+  maxAge: 86400
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/cases', caseRoutes);
@@ -74,7 +77,20 @@ const startServer = async () => {
     
     await seedData();
     
-    app.listen(PORT, () => {
+    const http = require('http');
+    const server = http.createServer(app);
+    
+    server.on('error', (e) => {
+      if (e.code === 'EADDRINUSE') {
+        console.log(`端口 ${PORT} 被占用，正在尝试释放...`);
+        setTimeout(() => {
+          server.close();
+          server.listen(PORT);
+        }, 1000);
+      }
+    });
+    
+    server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
     

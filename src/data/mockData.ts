@@ -5,6 +5,9 @@ export const mockCases: Case[] = [
   {
     id: 'case-001',
     title: 'Windows 11 更新后无法正常关机的解决方案',
+    description: '由于系统更新补丁与电源管理驱动不兼容，导致关机时触发重启机制。',
+    category: 'system',
+    severity: 'high',
     errorCode: '0x80070005',
     deviceType: '台式机',
     brand: 'Dell',
@@ -56,6 +59,9 @@ export const mockCases: Case[] = [
   {
     id: 'case-002',
     title: 'Office 365 频繁崩溃的排查与解决',
+    description: 'Office缓存文件损坏且加载项冲突导致应用程序不稳定。',
+    category: 'software',
+    severity: 'medium',
     errorCode: 'APPCRASH',
     deviceType: '笔记本',
     brand: 'HP',
@@ -100,6 +106,9 @@ export const mockCases: Case[] = [
   {
     id: 'case-003',
     title: '网络连接正常但无法访问特定网站的DNS故障',
+    description: '本地DNS缓存损坏且DNS服务器配置异常。',
+    category: 'network',
+    severity: 'medium',
     errorCode: 'DNS_PROBE_POSSIBLE',
     deviceType: '台式机',
     brand: 'Lenovo',
@@ -151,6 +160,9 @@ export const mockCases: Case[] = [
   {
     id: 'case-004',
     title: '打印机脱机无法打印的快速处理方法',
+    description: '打印机服务未启动且驱动程序异常。',
+    category: 'printer',
+    severity: 'low',
     errorCode: '0x00000709',
     deviceType: '打印机',
     brand: 'HP',
@@ -195,6 +207,9 @@ export const mockCases: Case[] = [
   {
     id: 'case-005',
     title: 'VMware虚拟机运行卡顿的性能优化方案',
+    description: '虚拟机资源配置不合理，内存和CPU分配不足。',
+    category: 'virtual',
+    severity: 'medium',
     errorCode: '-',
     deviceType: '虚拟桌面',
     brand: 'VMware',
@@ -246,6 +261,9 @@ export const mockCases: Case[] = [
   {
     id: 'case-006',
     title: '域账户登录失败且提示凭据错误的故障排除',
+    description: '域控制器时间同步异常且用户密码过期。',
+    category: 'domain',
+    severity: 'high',
     errorCode: '0x8007052E',
     deviceType: '台式机',
     brand: 'Dell',
@@ -290,6 +308,9 @@ export const mockCases: Case[] = [
   {
     id: 'case-007',
     title: '深信服VPN连接成功后无法访问内网资源',
+    description: 'VPN路由配置不完整，缺少内网网段路由。',
+    category: 'network',
+    severity: 'medium',
     errorCode: '-',
     deviceType: '笔记本',
     brand: 'ThinkPad',
@@ -327,6 +348,9 @@ export const mockCases: Case[] = [
   {
     id: 'case-008',
     title: 'Windows Server 2019 蓝屏故障排查',
+    description: '网卡驱动与服务器平台不兼容导致。',
+    category: 'system',
+    severity: 'critical',
     errorCode: 'DRIVER_IRQL_NOT_LESS_OR_EQUAL',
     deviceType: '服务器',
     brand: 'Dell',
@@ -480,6 +504,9 @@ export const categoryConfig: Record<CaseCategory, { name: string; icon: string; 
   hardware: { name: '硬件外设', icon: 'HardDrive', color: 'orange' },
   printer: { name: '打印设备', icon: 'Printer', color: 'purple' },
   software: { name: '办公软件', icon: 'FileText', color: 'red' },
+  application: { name: '应用故障', icon: 'Cloud', color: 'pink' },
+  security: { name: '安全问题', icon: 'Shield', color: 'indigo' },
+  data: { name: '数据问题', icon: 'Database', color: 'teal' },
   virtual: { name: '虚拟机', icon: 'Cloud', color: 'cyan' },
   domain: { name: '域认证', icon: 'Shield', color: 'indigo' }
 };

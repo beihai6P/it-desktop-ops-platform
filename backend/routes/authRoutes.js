@@ -10,6 +10,7 @@ const {
   updateUserById,
   deleteUser
 } = require('../controllers/authController');
+const userController = require('../controllers/userController');
 const { protect, admin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -36,6 +37,7 @@ router.post(
 router.get('/me', protect, getMe);
 router.put('/me', protect, updateUser);
 router.get('/users', protect, admin, getAllUsers);
+router.get('/users/stats', protect, admin, userController.getUserStats);
 router.get('/users/:id', protect, admin, getUserById);
 router.put('/users/:id', protect, admin, updateUserById);
 router.delete('/users/:id', protect, admin, deleteUser);

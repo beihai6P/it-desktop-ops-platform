@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Package, Search, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Package, Search, Trash2 } from 'lucide-react';
 
 export interface Software {
   id: string;

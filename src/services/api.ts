@@ -319,10 +319,51 @@ export const notificationAPI = {
   }) => api.post('/notifications/broadcast', data),
 };
 
+export interface SmartQAResult {
+  question: string;
+  answer: string;
+  confidence: number;
+  dataSource: 'local' | 'network';
+  localResults: {
+    cases: Array<{
+      type: string;
+      id: string;
+      title: string;
+      description: string;
+      symptoms: string[];
+      tags: string[];
+      category: string;
+      status: string;
+      author: string;
+      createdAt: string;
+    }>;
+    documents: Array<{
+      type: string;
+      id: string;
+      title: string;
+      description: string;
+      category: string;
+      type: string;
+      tags: string[];
+      createdAt: string;
+    }>;
+  };
+  sources: Array<{
+    id: string;
+    title: string;
+    type: string;
+    relevance: number;
+  }>;
+  hasLocalData: boolean;
+}
+
 export const aiAPI = {
   // 智能诊断助手
   diagnose: (data: DiagnosisRequest) => api.post<{ success: boolean; data: DiagnosisResult }>('/ai/diagnose', data),
   getSymptoms: (params?: { query?: string; limit?: number }) => api.get<{ success: boolean; data: { symptoms: Symptom[] } }>('/ai/symptoms', { params }),
+  
+  // 智能问答（本地知识库优先，支持联网回退）
+  smartQA: (data: { question: string; useLocalOnly?: boolean; topK?: number }) => api.post<{ success: boolean; data: SmartQAResult }>('/ai/qa', data),
   
   // 知识库AI助手
   qa: (data: { question: string; topK?: number }) => api.post<{ success: boolean; data: QAResult }>('/ai/knowledge/qa', data),

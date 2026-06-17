@@ -1,4 +1,3 @@
-
 const express = require('express');
 const router = express.Router();
 const aiController = require('../controllers/aiController');
@@ -6,6 +5,9 @@ const aiController = require('../controllers/aiController');
 // 智能诊断助手
 router.post('/diagnose', aiController.diagnose);
 router.get('/symptoms', aiController.getSymptoms);
+
+// 智能问答（本地知识库优先，支持联网回退）
+router.post('/qa', aiController.smartQA);
 
 // 知识库AI助手
 router.post('/knowledge/qa', aiController.knowledgeQA);

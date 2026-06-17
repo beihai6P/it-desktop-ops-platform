@@ -16,9 +16,11 @@ export default function Tools() {
   const [sortBy, setSortBy] = useState<SortType>('downloads');
   const [tools, setTools] = useState<Tool[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     loadTools();
+    checkAdmin();
   }, []);
 
   const loadTools = async () => {
@@ -29,6 +31,74 @@ export default function Tools() {
       console.error('Failed to load tools:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkAdmin = () => {
+    const user = localStorage.getItem('user');
+    if (user) {
+      try {
+        const parsed = JSON.parse(user);
+        setIsAdmin(parsed.role === 'admin');
+      } catch (e) {
+        console.error('Failed to parse user:', e);
+      }
+    }
+  };
+
+  const handlePin = async (id: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/tools/${id}/pin`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        await loadTools();
+      }
+    } catch (error) {
+      console.error('Failed to pin tool:', error);
+    }
+  };
+
+  const handleFeature = async (id: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/tools/${id}/feature`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        await loadTools();
+      }
+    } catch (error) {
+      console.error('Failed to feature tool:', error);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('确定要删除这个工具吗？此操作不可撤销。')) {
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/tools/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        await loadTools();
+      }
+    } catch (error) {
+      console.error('Failed to delete tool:', error);
     }
   };
 
@@ -62,7 +132,7 @@ export default function Tools() {
   const featuredTools = tools.filter((tool) => tool.isFeatured);
   const verifiedTools = tools.filter((tool) => tool.isVerified);
 
-  const handleUpload = async (data: FormData) => {
+  const handleUpload = async () => {
     try {
       loadTools();
     } catch (error) {
@@ -169,7 +239,15 @@ export default function Tools() {
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {featuredTools.map((tool) => (
-                <ToolCard key={tool.id} tool={tool} onClick={() => navigate(`/tools/${tool.id}`)} />
+                <ToolCard 
+                  key={tool.id} 
+                  tool={tool} 
+                  onClick={() => navigate(`/tools/${tool.id}`)}
+                  isAdmin={isAdmin}
+                  onPin={handlePin}
+                  onFeature={handleFeature}
+                  onDelete={handleDelete}
+                />
               ))}
             </div>
           </div>
@@ -187,7 +265,15 @@ export default function Tools() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sortedTools.map((tool) => (
-                <ToolCard key={tool.id} tool={tool} onClick={() => navigate(`/tools/${tool.id}`)} />
+                <ToolCard 
+                  key={tool.id} 
+                  tool={tool} 
+                  onClick={() => navigate(`/tools/${tool.id}`)}
+                  isAdmin={isAdmin}
+                  onPin={handlePin}
+                  onFeature={handleFeature}
+                  onDelete={handleDelete}
+                />
               ))}
             </div>
           )}

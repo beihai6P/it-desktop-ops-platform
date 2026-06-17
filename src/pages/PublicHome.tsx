@@ -80,8 +80,6 @@ export default function PublicHome() {
     logout();
   };
 
-  const isAdmin = user?.isAdmin || user?.role === 'admin';
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 overflow-y-auto">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-primary/10">

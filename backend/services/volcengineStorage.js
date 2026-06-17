@@ -121,8 +121,13 @@ class VolcengineStorage {
         partNumber,
         body: data,
       });
+      
+      console.log(`[存储] uploadPart 返回结果:`, JSON.stringify(result));
+      
+      const etag = result.data?.etag || result.etag || result.headers?.etag || result.headers?.['etag'];
+      
       return {
-        etag: result.etag,
+        etag: etag ? etag.replace(/"/g, '') : null,
         partNumber,
       };
     } catch (error) {
@@ -141,8 +146,15 @@ class VolcengineStorage {
         key,
         contentType: options.contentType,
       });
+      console.log('[存储] createMultipartUpload 返回类型:', typeof result);
+      console.log('[存储] createMultipartUpload 返回键:', Object.keys(result));
+      console.log('[存储] createMultipartUpload 返回值:', JSON.stringify(result, null, 2));
+      
+      const uploadId = result.uploadId || result.UploadId || result.data?.uploadId || result.data?.UploadId;
+      console.log('[存储] 提取的 uploadId:', uploadId);
+      
       return {
-        uploadId: result.uploadId,
+        uploadId: uploadId,
         key,
       };
     } catch (error) {
@@ -308,6 +320,8 @@ class VolcengineStorage {
         expires: expiresIn,
       };
       
+      console.log(`[存储] 生成预签名URL - operation: ${operation}, key: ${key}, uploadId: ${uploadId}, partNumber: ${partNumber}`);
+      
       switch (operation) {
         case 'put':
           method = 'PUT';
@@ -317,8 +331,13 @@ class VolcengineStorage {
           break;
         case 'uploadPart':
           method = 'PUT';
-          params.uploadId = uploadId;
-          params.partNumber = partNumber;
+          // 火山引擎TOS SDK要求 uploadId 和 partNumber 通过 query 参数传递
+          params.query = {
+            uploadId: String(uploadId),
+            partNumber: String(partNumber),
+          };
+          params.contentType = 'application/octet-stream';
+          console.log(`[存储] 分片上传参数 - uploadId: ${uploadId}, partNumber: ${partNumber}, contentType: application/octet-stream`);
           break;
         case 'get':
         default:
@@ -326,15 +345,47 @@ class VolcengineStorage {
           break;
       }
       
-      // 火山引擎TOS SDK生成预签名URL
-      const url = await this.client.signUrl({
+      console.log(`[存储] 调用 getPreSignedUrl - method: ${method}, params:`, JSON.stringify(params));
+      
+      // 火山引擎TOS SDK生成预签名URL（同步函数，返回string）
+      const url = this.client.getPreSignedUrl({
         method,
         ...params,
       });
       
-      return url;
+      console.log(`[存储] 预签名URL生成成功 - ${url.substring(0, 150)}...`);
+      console.log(`[存储] 完整URL:`, url);
+      
+      // 分片上传：检查SDK是否正确生成了包含uploadId和partNumber的URL
+      // 如果SDK没有正确生成，说明参数名可能不对，需要检查SDK文档
+      let finalUrl = url;
+      if (operation === 'uploadPart' && uploadId && partNumber) {
+        // 检查URL是否已经包含这些参数
+        const hasUploadId = url.includes('uploadId=') || url.includes('upload-id=') || url.includes('UploadId=');
+        const hasPartNumber = url.includes('partNumber=') || url.includes('part-number=') || url.includes('PartNumber=');
+        
+        if (!hasUploadId || !hasPartNumber) {
+          console.error(`[存储] ❌ SDK未正确生成包含uploadId和partNumber的预签名URL`);
+          console.error(`[存储] ❌ hasUploadId: ${hasUploadId}, hasPartNumber: ${hasPartNumber}`);
+          // 由于SDK生成的URL不包含必要参数，我们需要使用后端代理方式
+          // 返回一个标记，让前端知道需要使用代理上传
+          throw new Error('SDK生成的预签名URL不包含必要参数，请使用后端代理上传');
+        }
+      }
+      
+      // 验证URL是否包含必要的参数
+      if (operation === 'uploadPart') {
+        if (!finalUrl.includes('uploadId=')) {
+          console.error(`[存储] ❌ 分片上传URL缺少uploadId参数`);
+        }
+        if (!finalUrl.includes('partNumber=')) {
+          console.error(`[存储] ❌ 分片上传URL缺少partNumber参数`);
+        }
+      }
+      
+      return finalUrl;
     } catch (error) {
-      console.error(`❌ 生成预签名URL失败: ${key}`, error);
+      console.error(`❌ 生成预签名URL失败: ${options.key}`, error);
       throw new Error(`生成预签名URL失败: ${error.message}`);
     }
   }
@@ -359,9 +410,9 @@ class VolcengineStorage {
   /**
    * 完成分片上传
    */
-  async completeMultipartUpload(options) {
+  async completeMultipartUpload(key, uploadId, parts) {
     try {
-      const { key, uploadId, parts } = options;
+      console.log(`[存储] completeMultipartUpload - key: ${key}, uploadId: ${uploadId}, parts:`, JSON.stringify(parts));
       
       const result = await this.client.completeMultipartUpload({
         bucket: this.bucket,
@@ -369,13 +420,17 @@ class VolcengineStorage {
         uploadId,
         parts: parts.map(p => ({
           partNumber: p.partNumber,
-          etag: p.etag,
+          eTag: p.etag.startsWith('"') ? p.etag : `"${p.etag}"`,
         })),
       });
       
+      console.log(`[存储] completeMultipartUpload 返回结果:`, JSON.stringify(result));
+      
+      const data = result.data || result;
+      
       return {
-        etag: result.etag,
-        location: result.location,
+        etag: data.etag || data.ETag,
+        location: data.location || data.Location,
       };
     } catch (error) {
       console.error(`❌ 完成分片上传失败: ${key}`, error);

@@ -35,6 +35,12 @@ export default function ToolDetailPage() {
 
   const handleDownload = async () => {
     if (!tool?.id) return;
+    
+    // 显示下载确认弹窗
+    const confirmed = window.confirm(`\u4E0B\u8F7D\u786E\u8BA4\n\n\u5DE5\u5177\u540D\u79F0: ${tool.name}\n\n\u26A0\uFE0F  \u63D0\u793A\uFF1A\n\u672C\u5305\u542BWindows\u5DE5\u5177\u7A0B\u5E8F\uFF08.exe\u6216\u538B\u7F29\u5305\uFF09\uFF0C\n\u4E0B\u8F7D\u540E\u8BF7\u6839\u636E\u8FD9\u91CC\u7BA1\u7406\u5668\u8981\u6C42\u8FDB\u884C\u89E3\u538B\u4F7F\u7528\u3002\n\n\u5B89\u5168\u63D0\u9192\uFF1A\n- \u672C\u5E94\u7528\u53EA\u63D0\u4F9B\u7B80\u5355\u7684\u7CFB\u7EDF\u5DE5\u5177\n- \u4F7F\u7528\u524D\u8BF7\u786E\u8BA4\u4F60\u4E86\u89E3\u6B64\u5DE5\u5177\u7684\u529F\u80FD\n- \u5982\u6709\u4EFB\u4F55\u7591\u7528\uFF0C\u8BF7\u4E0D\u8981\u4E0B\u8F7D\n\n\u786E\u5B9A\u8981\u4E0B\u8F7D\u5417\uFF1F`);
+    
+    if (!confirmed) return;
+    
     try {
       const token = localStorage.getItem('token') || '';
       
@@ -75,7 +81,8 @@ export default function ToolDetailPage() {
           try {
             const decoded = decodeURIComponent(matchUtf8[1]);
             filename = decoded;
-          } catch {
+          } catch (e) {
+            console.error('Failed to decode filename:', e);
           }
         } else if (matchIso && matchIso[1]) {
           filename = matchIso[1];
@@ -245,14 +252,20 @@ export default function ToolDetailPage() {
               <div className="bg-white rounded-2xl p-6 border border-primary/20">
                 <h3 className="text-lg font-semibold text-theme-text mb-4">预览截图</h3>
                 <div className="grid gap-4">
-                  {tool.screenshots.map((screenshot, index) => (
-                    <img
-                      key={index}
-                      src={screenshot}
-                      alt={`截图 ${index + 1}`}
-                      className="w-full rounded-xl object-cover h-64 bg-gray-100"
-                    />
-                  ))}
+                  {tool.screenshots.map((screenshot, index) => {
+                    // 判断是完整URL还是存储key
+                    const src = screenshot.startsWith('http') 
+                      ? screenshot 
+                      : `/api/tools/screenshot/${encodeURIComponent(screenshot)}`;
+                    return (
+                      <img
+                        key={index}
+                        src={src}
+                        alt={`截图 ${index + 1}`}
+                        className="w-full rounded-xl object-cover h-64 bg-gray-100"
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}

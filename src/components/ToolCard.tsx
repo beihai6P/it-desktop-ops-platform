@@ -1,12 +1,16 @@
-import { Download, Eye, Star, Share2, Tag, Check, Flame } from 'lucide-react';
+import { Download, Eye, Star, Share2, Tag, Check, Flame, Pin, Trash2 } from 'lucide-react';
 import type { Tool } from '@/types';
 
 interface ToolCardProps {
   tool: Tool;
   onClick: () => void;
+  isAdmin?: boolean;
+  onPin?: (id: string) => void;
+  onFeature?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
-export default function ToolCard({ tool, onClick }: ToolCardProps) {
+export default function ToolCard({ tool, onClick, isAdmin, onPin, onFeature, onDelete }: ToolCardProps) {
   const getTypeBadge = (type: string) => {
     switch (type) {
       case 'script':
@@ -25,6 +29,12 @@ export default function ToolCard({ tool, onClick }: ToolCardProps) {
       onClick={onClick}
       className="bg-white/85 backdrop-blur-sm border border-primary/20 rounded-xl p-5 hover:shadow-xl hover:border-primary/40 transition-all duration-300 cursor-pointer group relative overflow-hidden"
     >
+      {tool.isPinned && (
+        <div className="absolute top-0 left-0 bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-xs px-3 py-1 rounded-br-lg flex items-center gap-1">
+          <Pin className="w-3 h-3" />
+          置顶
+        </div>
+      )}
       {tool.isFeatured && (
         <div className="absolute top-0 right-0 bg-gradient-to-l from-orange-500 to-red-500 text-white text-xs px-3 py-1 rounded-bl-lg flex items-center gap-1">
           <Flame className="w-3 h-3" />
@@ -52,6 +62,31 @@ export default function ToolCard({ tool, onClick }: ToolCardProps) {
           <button className="p-2 hover:bg-primary/10 rounded-lg transition-colors" onClick={(e) => { e.stopPropagation(); }}>
             <Download className="w-4 h-4 text-text-muted" />
           </button>
+          {isAdmin && (
+            <>
+              <button 
+                className={`p-2 rounded-lg transition-colors ${tool.isPinned ? 'bg-blue-100 text-blue-600' : 'hover:bg-blue-100 text-text-muted hover:text-blue-600'}`} 
+                onClick={(e) => { e.stopPropagation(); onPin?.(tool.id); }}
+                title={tool.isPinned ? '取消置顶' : '置顶'}
+              >
+                <Pin className="w-4 h-4" />
+              </button>
+              <button 
+                className={`p-2 rounded-lg transition-colors ${tool.isFeatured ? 'bg-orange-100 text-orange-600' : 'hover:bg-orange-100 text-text-muted hover:text-orange-600'}`} 
+                onClick={(e) => { e.stopPropagation(); onFeature?.(tool.id); }}
+                title={tool.isFeatured ? '取消精选' : '加精'}
+              >
+                <Flame className="w-4 h-4" />
+              </button>
+              <button 
+                className="p-2 hover:bg-red-100 rounded-lg transition-colors text-text-muted hover:text-red-600" 
+                onClick={(e) => { e.stopPropagation(); onDelete?.(tool.id); }}
+                title="删除"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 

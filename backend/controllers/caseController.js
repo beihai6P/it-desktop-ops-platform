@@ -1,5 +1,6 @@
 const Case = require('../models/Case');
 const { validationResult } = require('express-validator');
+const { getStorageAdapter } = require('../services/storageAdapter');
 
 const generateCaseId = () => {
   return 'CASE-' + Date.now().toString(36).toUpperCase();
@@ -51,25 +52,70 @@ const getCaseById = async (req, res) => {
 };
 
 const createCase = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
+  console.log('\n========================================');
+  console.log('[案例创建] 请求开始');
+  console.log('[案例创建] 时间:', new Date().toISOString());
+  console.log('[案例创建] 方法:', req.method);
+  console.log('[案例创建] URL:', req.originalUrl);
+  console.log('[案例创建] 请求体数据:', req.body.data ? '存在，长度: ' + req.body.data.length : '不存在');
+  console.log('[案例创建] 文件数量:', req.files ? req.files.length : 0);
+  console.log('========================================\n');
+  
   try {
+    const body = req.body.data ? JSON.parse(req.body.data) : req.body;
+    
     const caseData = {
-      ...req.body,
+      ...body,
       id: generateCaseId(),
       authorId: req.user._id,
       author: req.user.name,
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
+      attachments: []
     };
+
+    const storageAdapter = getStorageAdapter();
+    
+    const attachments = Array.isArray(req.files) ? req.files.filter(f => f.fieldname === 'attachments') : [];
+    
+    if (attachments.length > 0) {
+      console.log(`[案例创建] 找到附件文件: ${attachments.length} 个`);
+      
+      for (const attachment of attachments) {
+        const file = attachment;
+        const ext = file.originalname.split('.').pop()?.toLowerCase();
+        const safeFilename = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${ext}`;
+        const objectKey = `uploads/cases/${safeFilename}`;
+        console.log('[案例创建] 上传附件:', objectKey);
+
+        const result = await storageAdapter.putObject(objectKey, file.buffer, {
+          contentType: file.mimetype || `application/octet-stream`
+        });
+        console.log('[案例创建] 附件上传成功:', objectKey);
+
+        caseData.attachments.push({
+          name: file.originalname,
+          url: `https://${process.env.VOLC_BUCKET}.${process.env.VOLC_ENDPOINT}/${objectKey}`,
+          storagePath: objectKey,
+          mimeType: file.mimetype,
+          size: file.size
+        });
+      }
+    } else if (body.attachments && Array.isArray(body.attachments)) {
+      caseData.attachments = body.attachments.map(att => ({
+        name: att.name,
+        url: att.url,
+        storagePath: att.storagePath,
+        mimeType: att.mimeType,
+        size: att.size
+      }));
+    }
 
     const caseItem = await Case.create(caseData);
     res.status(201).json(caseItem);
   } catch (error) {
-    res.status(500).json({ message: '服务器错误' });
+    console.error('[案例创建] 错误:', error);
+    res.status(500).json({ message: '服务器错误', error: error.message });
   }
 };
 

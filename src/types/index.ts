@@ -9,6 +9,9 @@ export interface CaseStep {
 export interface Case {
   id: string;
   title: string;
+  description: string;
+  category: CaseCategory;
+  severity: 'critical' | 'high' | 'medium' | 'low';
   errorCode: string;
   deviceType: string;
   brand: string;
@@ -46,27 +49,35 @@ export interface Attachment {
 }
 
 // 案例分类
-export type CaseCategory = 
-  | 'all' 
-  | 'system' 
-  | 'network' 
-  | 'hardware' 
-  | 'printer' 
-  | 'software' 
-  | 'virtual' 
+export type CaseCategory =
+  | 'all'
+  | 'system'
+  | 'network'
+  | 'hardware'
+  | 'printer'
+  | 'software'
+  | 'application'
+  | 'security'
+  | 'data'
+  | 'virtual'
   | 'domain';
 
 // 排序规则
-export type SortRule = 'latest' | 'views' | 'likes';
+export type SortRule = 'latest' | 'views' | 'likes' | 'popular' | 'unresolved';
 
 // 质量筛选
-export type QualityFilter = 'all' | 'verified' | 'standard' | 'basic';
+export type QualityFilter = 'all' | 'verified' | 'standard' | 'basic' | 'critical' | 'high' | 'medium' | 'low';
 
 // 案例统计数据
 export interface CaseStats {
-  totalPosts: number;
-  closedSolutions: number;
-  weeklyNew: number;
+  total: number;
+  resolved: number;
+  pending: number;
+  inProgress: number;
+  resolutionRate: number;
+  totalPosts?: number;
+  closedSolutions?: number;
+  weeklyNew?: number;
 }
 
 // AI诊断相关类型
@@ -707,6 +718,7 @@ export interface ExperimentComparisonResult {
 
 export interface Notification {
   id: string;
+  _id?: string;
   userId: string;
   type: 'system' | 'comment' | 'like' | 'mention' | 'task' | 'review' | 'ticket' | 'message';
   title: string;

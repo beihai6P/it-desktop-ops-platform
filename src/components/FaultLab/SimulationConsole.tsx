@@ -53,8 +53,9 @@ export default function SimulationConsole({ isLogMode, environmentSource, produc
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setLocalSandboxLogs(sandboxLogs.length > 0 ? sandboxLogs : generateSandboxLogs());
-    setCurrentLogs(sandboxLogs.length > 0 ? sandboxLogs : generateSandboxLogs());
+    const initial = sandboxLogs.length > 0 ? sandboxLogs : generateSandboxLogs();
+    setCurrentLogs(initial);
+    setLocalSandboxLogs(initial);
   }, [sandboxLogs]);
 
   useEffect(() => {
@@ -113,7 +114,8 @@ export default function SimulationConsole({ isLogMode, environmentSource, produc
   };
 
   const exportLogs = () => {
-    const logText = currentLogs.map(log => {
+    const sourceLogs = localSandboxLogs.length > 0 ? localSandboxLogs : currentLogs;
+    const logText = sourceLogs.map(log => {
       return `[${log.timestamp}] [${log.source}] [EventID: ${log.eventId}] [${log.level.toUpperCase()}] ${log.message}`;
     }).join('\n');
 
@@ -131,7 +133,7 @@ export default function SimulationConsole({ isLogMode, environmentSource, produc
   const takeSnapshot = () => {
     const snapshot = {
       timestamp: new Date().toLocaleString('zh-CN'),
-      logs: [...currentLogs],
+      logs: [...localSandboxLogs],
       isRunning: isRunning,
     };
     localStorage.setItem('sandbox_snapshot', JSON.stringify(snapshot));
