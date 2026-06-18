@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Star, Send, MessageCircle, ThumbsUp, Reply } from 'lucide-react';
 import type { ToolComment } from '@/types';
 import { logger } from '@/lib/logger';
+import { useAuth } from '@/contexts/AuthContext';
+import LoginRequiredToast from './LoginRequiredToast';
 
 interface CommentSectionProps {
   comments: ToolComment[];
@@ -9,13 +11,19 @@ interface CommentSectionProps {
 }
 
 export default function CommentSection({ comments, toolId }: CommentSectionProps) {
+  const { isAuthenticated } = useAuth();
   const [newComment, setNewComment] = useState('');
   const [rating, setRating] = useState(5);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
+  const [showLoginToast, setShowLoginToast] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAuthenticated) {
+      setShowLoginToast(true);
+      return;
+    }
     if (newComment.trim()) {
       logger.info('提交评论:', { content: newComment, rating, toolId });
       setNewComment('');
@@ -33,6 +41,10 @@ export default function CommentSection({ comments, toolId }: CommentSectionProps
   };
 
   const handleSubmitReply = (commentId: string) => {
+    if (!isAuthenticated) {
+      setShowLoginToast(true);
+      return;
+    }
     if (replyContent.trim()) {
       logger.info('提交回复:', { content: replyContent, commentId });
       setReplyContent('');
@@ -173,6 +185,11 @@ export default function CommentSection({ comments, toolId }: CommentSectionProps
           ))
         )}
       </div>
+
+      <LoginRequiredToast
+        show={showLoginToast}
+        onClose={() => setShowLoginToast(false)}
+      />
     </div>
   );
 }

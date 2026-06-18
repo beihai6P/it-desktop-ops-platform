@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BookOpen, FileText, FolderOpen, Tag, Search, ChevronRight, ExternalLink, Download, Eye, Heart, Filter, Plus, Star, Award, CheckCircle2, Lock } from 'lucide-react';
 import type { Document } from '@/types';
 import DocumentUpload from '@/components/DocumentUpload';
-import LoginModal from '@/components/LoginModal';
+import LoginRequiredToast from '@/components/LoginRequiredToast';
 import AIKnowledgeAssistant from '@/components/AIKnowledgeAssistant';
 import { documentAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -80,7 +80,7 @@ export default function Knowledge() {
   const [activeType, setActiveType] = useState('全部');
   const [searchQuery, setSearchQuery] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showLoginToast, setShowLoginToast] = useState(false);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [sortBy, setSortBy] = useState<SortType>('views');
   const [loading, setLoading] = useState(true);
@@ -102,7 +102,7 @@ export default function Knowledge() {
 
   const handleToggleFavorite = async (id: string) => {
     if (!isAuthenticated) {
-      setShowLoginModal(true);
+      setShowLoginToast(true);
       return;
     }
     try {
@@ -125,7 +125,7 @@ export default function Knowledge() {
 
   const handleDownload = (doc: Document) => {
     if (!isAuthenticated) {
-      setShowLoginModal(true);
+      setShowLoginToast(true);
       return;
     }
     setDocuments((prev) =>
@@ -203,7 +203,7 @@ export default function Knowledge() {
             </button>
           ) : (
             <button
-              onClick={() => setShowLoginModal(true)}
+              onClick={() => setShowLoginToast(true)}
               className="flex items-center gap-2 px-5 py-2.5 bg-gray-200 text-gray-600 rounded-xl hover:bg-gray-300 transition-colors"
             >
               <Lock className="w-5 h-5" />
@@ -552,7 +552,10 @@ export default function Knowledge() {
         <DocumentUpload onClose={() => setShowUploadModal(false)} onSubmit={handleUpload} />
       )}
 
-      {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
+      <LoginRequiredToast
+        show={showLoginToast}
+        onClose={() => setShowLoginToast(false)}
+      />
     </div>
   );
 }

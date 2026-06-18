@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   X, ThumbsUp, MessageSquare, Eye, Calendar, CheckCircle, AlertCircle,
   Bookmark, Share2, Download, Copy, Send,
@@ -6,29 +6,23 @@ import {
   BookOpen, Lightbulb, ChevronDown, ChevronUp
 } from 'lucide-react';
 import type { Case, CaseComment, CaseReply } from '@/types';
-import { mockComments } from '@/data/mockData';
 
 interface CaseDetailProps {
   case: Case;
+  comments?: CaseComment[];
   onClose: () => void;
   onLike?: (caseId: string, e?: React.MouseEvent) => void;
   onBookmark?: (caseId: string, e?: React.MouseEvent) => void;
   onShare?: (caseItem: Case, e?: React.MouseEvent) => void;
 }
 
-export default function CaseDetail({ case: currentCase, onClose, onLike, onBookmark, onShare }: CaseDetailProps) {
-  const [comments, setComments] = useState<CaseComment[]>([]);
+export default function CaseDetail({ case: currentCase, comments = [], onClose, onLike, onBookmark, onShare }: CaseDetailProps) {
+  const [localComments, setLocalComments] = useState<CaseComment[]>(comments);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [showComments, setShowComments] = useState(false);
   const [copiedStep, setCopiedStep] = useState<number | null>(null);
-
-  useEffect(() => {
-    // 加载评论
-    const caseComments = mockComments.filter(c => c.caseId === currentCase.id);
-    setComments(caseComments);
-  }, [currentCase.id]);
 
   // 获取状态显示
   const getStatusDisplay = (status: string) => {
@@ -81,7 +75,7 @@ export default function CaseDetail({ case: currentCase, onClose, onLike, onBookm
       replies: [],
     };
 
-    setComments(prev => [comment, ...prev]);
+    setLocalComments(prev => [comment, ...prev]);
     setNewComment('');
   };
 
@@ -99,7 +93,7 @@ export default function CaseDetail({ case: currentCase, onClose, onLike, onBookm
       createdAt: new Date().toISOString(),
     };
 
-    setComments(prev => prev.map(c => {
+    setLocalComments(prev => prev.map(c => {
       if (c.id === commentId) {
         return { ...c, replies: [...c.replies, reply] };
       }
@@ -227,7 +221,7 @@ ${currentCase.steps.map(s => `${s.step}. ${s.title}\n   ${s.description}\n   ${s
               </div>
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-4 h-4" />
-                <span>{currentCase.comments + comments.reduce((acc, c) => acc + c.replies.length, 0)} 评论</span>
+                <span>{currentCase.comments + localComments.reduce((acc, c) => acc + c.replies.length, 0)} 评论</span>
               </div>
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
@@ -389,7 +383,7 @@ ${currentCase.steps.map(s => `${s.step}. ${s.title}\n   ${s.description}\n   ${s
               <div className="flex items-center gap-3">
                 <MessageSquare className="w-5 h-5 text-primary" />
                 <span className="font-semibold text-theme-text">
-                  评论 ({comments.length + comments.reduce((acc, c) => acc + c.replies.length, 0)})
+                  评论 ({localComments.length + localComments.reduce((acc, c) => acc + c.replies.length, 0)})
                 </span>
               </div>
               {showComments ? <ChevronUp className="w-5 h-5 text-text-muted" /> : <ChevronDown className="w-5 h-5 text-text-muted" />}
@@ -424,14 +418,14 @@ ${currentCase.steps.map(s => `${s.step}. ${s.title}\n   ${s.description}\n   ${s
                 </div>
 
                 {/* 评论列表 */}
-                {comments.length === 0 ? (
+                {localComments.length === 0 ? (
                   <div className="text-center py-8 text-text-muted">
                     <MessageSquare className="w-12 h-12 mx-auto mb-3 text-primary/30" />
                     <p>暂无评论，来发表第一条评论吧</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {comments.map((comment) => (
+                    {localComments.map((comment) => (
                       <div key={comment.id} className="space-y-3">
                         {/* 主评论 */}
                         <div className="flex gap-3 p-4 bg-theme-bg rounded-xl">

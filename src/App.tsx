@@ -93,8 +93,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 function AppRoutes() {
-  const { isAuthenticated, user } = useAuth();
-  const isAdmin = user?.isAdmin || user?.role === 'admin';
+  const { isAuthenticated } = useAuth();
   
   return (
     <Routes>
@@ -121,17 +120,23 @@ function AppRoutes() {
       } />
       
       <Route path="/diagnosis" element={
-        <ProtectedRoute>
+        isAuthenticated ? (
           <MainLayout>
             <Diagnosis />
           </MainLayout>
-        </ProtectedRoute>
+        ) : (
+          <Diagnosis />
+        )
       } />
       
       <Route path="/diagnosis/:id" element={
-        <ProtectedRoute>
+        isAuthenticated ? (
+          <MainLayout>
+            <CaseDetailPage />
+          </MainLayout>
+        ) : (
           <CaseDetailPage />
-        </ProtectedRoute>
+        )
       } />
       
       <Route path="/collaboration" element={
@@ -199,19 +204,23 @@ function AppRoutes() {
       } />
       
       <Route path="/tools" element={
-        <ProtectedRoute>
+        isAuthenticated ? (
           <MainLayout>
             <Tools />
           </MainLayout>
-        </ProtectedRoute>
+        ) : (
+          <Tools />
+        )
       } />
       
       <Route path="/tools/:id" element={
-        <ProtectedRoute>
+        isAuthenticated ? (
           <MainLayout>
             <ToolDetailPage />
           </MainLayout>
-        </ProtectedRoute>
+        ) : (
+          <ToolDetailPage />
+        )
       } />
       
       <Route path="/sandbox" element={

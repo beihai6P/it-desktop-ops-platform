@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Eye, Star, Share2, Check, Clock, Calendar, FileText, Shield, ArrowLeft, Heart } from 'lucide-react';
+import { Download, Share2, Check, Clock, Calendar, FileText, Shield, ArrowLeft, Heart } from 'lucide-react';
 import type { Tool } from '@/types';
 import { toolAPI } from '@/services/api';
 import CommentSection from '@/components/CommentSection';
+import { apiDownloadPost } from '@/scheduler';
 
 export default function ToolDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -14,11 +15,7 @@ export default function ToolDetailPage() {
   const [isFavorited, setIsFavorited] = useState(false);
   const [showShareToast, setShowShareToast] = useState(false);
 
-  useEffect(() => {
-    loadTool();
-  }, [id]);
-
-  const loadTool = async () => {
+  const loadTool = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
@@ -31,130 +28,65 @@ export default function ToolDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadTool();
+  }, [loadTool]);
 
   const handleDownload = async () => {
     if (!tool?.id) return;
-    
-    // 显示下载确认弹窗
-    const confirmed = window.confirm(`\u4E0B\u8F7D\u786E\u8BA4\n\n\u5DE5\u5177\u540D\u79F0: ${tool.name}\n\n\u26A0\uFE0F  \u63D0\u793A\uFF1A\n\u672C\u5305\u542BWindows\u5DE5\u5177\u7A0B\u5E8F\uFF08.exe\u6216\u538B\u7F29\u5305\uFF09\uFF0C\n\u4E0B\u8F7D\u540E\u8BF7\u6839\u636E\u8FD9\u91CC\u7BA1\u7406\u5668\u8981\u6C42\u8FDB\u884C\u89E3\u538B\u4F7F\u7528\u3002\n\n\u5B89\u5168\u63D0\u9192\uFF1A\n- \u672C\u5E94\u7528\u53EA\u63D0\u4F9B\u7B80\u5355\u7684\u7CFB\u7EDF\u5DE5\u5177\n- \u4F7F\u7528\u524D\u8BF7\u786E\u8BA4\u4F60\u4E86\u89E3\u6B64\u5DE5\u5177\u7684\u529F\u80FD\n- \u5982\u6709\u4EFB\u4F55\u7591\u7528\uFF0C\u8BF7\u4E0D\u8981\u4E0B\u8F7D\n\n\u786E\u5B9A\u8981\u4E0B\u8F7D\u5417\uFF1F`);
-    
+
+    const confirmed = window.confirm('下载确认\n\n工具名称: ' + tool.name + '\n\n⚠️ 提示:\n本包含Windows工具程序(.exe或压缩包),\n下载后请根据这里管理器要求进行解压使用。\n\n安全提醒:\n- 本应用只提供简单的系统工具\n- 使用前请确认你了解此工具的功能\n- 如有任何疑问,请不要下载\n\n确定要下载吗?');
+
     if (!confirmed) return;
-    
+
     try {
-      const token = localStorage.getItem('token') || '';
-      
-      // 加时间戳防缓存
-      const response = await fetch(`http://localhost:5000/api/tools/${tool.id}/download?_t=${Date.now()}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        cache: 'no-store'
-      });
-      
-      if (!response.ok) {
+      const result = await apiDownloadPost('/tools/' + tool.id + '/download?_t=' + Date.now());
+
+      if (!result) {
         throw new Error('下载失败');
       }
 
-      // 获取后端返回的实际Content-Type
-      const contentType = response.headers.get('Content-Type') || 'application/octet-stream';
-      
-      // 强制接收二进制，不解析成文本
-      const arrayBuffer = await response.arrayBuffer();
-      
-      // 动态声明文件类型，使用后端返回的Content-Type
-      const blob = new Blob([arrayBuffer], { type: contentType });
-      
-      // 优先使用后端返回的Content-Disposition中的文件名，否则根据Content-Type生成
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `${tool.name}`;
-      
-      if (contentDisposition) {
-        const utf8Regex = /filename\*=UTF-8''([^;]+)/i;
-        const matchUtf8 = contentDisposition.match(utf8Regex);
-        
-        const matchIso = contentDisposition.match(/filename="([^"]+)"/);
-        const matchSimple = contentDisposition.match(/filename=([^;\r\n "]+)/);
-        
-        if (matchUtf8 && matchUtf8[1]) {
-          try {
-            const decoded = decodeURIComponent(matchUtf8[1]);
-            filename = decoded;
-          } catch (e) {
-            console.error('Failed to decode filename:', e);
-          }
-        } else if (matchIso && matchIso[1]) {
-          filename = matchIso[1];
-        } else if (matchSimple && matchSimple[1]) {
-          filename = matchSimple[1].trim();
-        }
-      } else {
-        // 如果后端没有返回Content-Disposition，根据Content-Type生成扩展名
-        const extensionMap: Record<string, string> = {
-          'application/zip': '.zip',
-          'application/x-zip-compressed': '.zip',
-          'application/x-rar-compressed': '.rar',
-          'application/x-7z-compressed': '.7z',
-          'application/gzip': '.gz',
-          'application/x-tar': '.tar',
-          'application/octet-stream': '.exe', // 默认exe
-          'application/exe': '.exe',
-          'application/x-msdownload': '.exe',
-          'application/pdf': '.pdf',
-          'image/png': '.png',
-          'image/jpeg': '.jpg',
-          'image/gif': '.gif',
-        };
-        
-        const ext = extensionMap[contentType] || '.exe';
-        filename = `${tool.name}${ext}`;
-      }
-
+      const { blob, filename } = result;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename;
+      a.download = filename || tool.name;
       document.body.appendChild(a);
       a.click();
-      
-      // 延长清理时间，确保下载完成
-      setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }, 1000);
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
 
-      setTool(prev => prev ? { ...prev, downloads: (prev.downloads || 0) + 1 } : null);
     } catch (err) {
-      console.error('下载失败:', err);
-      alert('下载失败，请重试');
+      console.error('Download failed:', err);
+      alert('下载失败: ' + (err as Error).message);
     }
   };
 
   const handleFavorite = () => {
     setIsFavorited(!isFavorited);
-    setTool(prev => prev ? { ...prev, stars: isFavorited ? (prev.stars || 0) - 1 : (prev.stars || 0) + 1 } : null);
   };
 
   const handleShare = async () => {
-    const shareUrl = `${window.location.origin}/tools/${tool?.id}`;
+    if (!tool) return;
+    
     try {
+      const shareData = {
+        title: tool.name,
+        text: tool.description,
+        url: window.location.href
+      };
+
       if (navigator.share) {
-        await navigator.share({
-          title: tool?.name || '工具分享',
-          text: tool?.description || '',
-          url: shareUrl,
-        });
+        await navigator.share(shareData);
       } else {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(window.location.href);
         setShowShareToast(true);
         setTimeout(() => setShowShareToast(false), 2000);
       }
     } catch (err) {
-      console.error('分享失败:', err);
-      await navigator.clipboard.writeText(shareUrl);
-      setShowShareToast(true);
-      setTimeout(() => setShowShareToast(false), 2000);
+      console.error('Share failed:', err);
     }
   };
 
@@ -171,6 +103,22 @@ export default function ToolDetailPage() {
     }
   };
 
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const formatVersion = (version: string) => {
+    if (!version.startsWith('v')) {
+      return 'v' + version;
+    }
+    return version;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -181,12 +129,14 @@ export default function ToolDetailPage() {
 
   if (error || !tool) {
     return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <FileText className="w-16 h-16 text-primary/30 mb-4" />
-        <p className="text-text-muted">{error || '工具不存在'}</p>
+      <div className="flex flex-col items-center justify-center h-full text-center">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+          <FileText className="w-8 h-8 text-red-400" />
+        </div>
+        <p className="text-lg font-medium text-gray-900 mb-2">{error || '工具不存在'}</p>
         <button
           onClick={() => navigate('/tools')}
-          className="mt-4 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors"
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
         >
           返回工具列表
         </button>
@@ -195,225 +145,183 @@ export default function ToolDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-theme-bg relative">
-      {showShareToast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-theme-text text-white px-6 py-3 rounded-xl shadow-lg z-[100]">
-          链接已复制到剪贴板
-        </div>
-      )}
-      <header className="bg-white/85 backdrop-blur-sm border-b border-primary/20 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+    <div className="min-h-full bg-gray-50">
+      <div className="bg-white border-b">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/tools')}
-              className="flex items-center gap-2 text-text-muted hover:text-primary transition-colors"
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              返回工具列表
+              返回
             </button>
-            <h1 className="text-lg font-semibold text-theme-text">工具详情</h1>
-            <div className="w-32"></div>
+            <h1 className="text-xl font-bold text-gray-900">{tool.name}</h1>
           </div>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-6 border border-primary/20">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-primary/20 rounded-xl flex items-center justify-center">
-                    <FileText className="w-8 h-8 text-primary" />
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+              <div className="p-6">
+                <div className="flex gap-6">
+                  <div className="w-40 h-40 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-20 h-20 text-blue-400" />
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-theme-text">{tool.name}</h2>
-                    <div className="flex items-center gap-2 mt-2">
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
                       {getTypeBadge(tool.type)}
-                      {tool.isVerified && (
-                        <span className="flex items-center gap-1 text-green-600 text-sm">
-                          <Check className="w-4 h-4" />
-                          已验证
-                        </span>
-                      )}
-                      {tool.isFeatured && (
-                        <span className="px-3 py-1 bg-orange-100 text-orange-600 rounded-full text-sm font-medium">
-                          精选工具
+                      <span className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">{tool.category}</span>
+                      <span className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">{formatVersion(tool.version)}</span>
+                    </div>
+                    <p className="text-gray-600 mb-4">{tool.description}</p>
+                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        {formatDate(tool.createdAt)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        更新于 {formatDate(tool.updatedAt)}
+                      </span>
+                      {tool.license && (
+                        <span className="flex items-center gap-1">
+                          <Shield className="w-4 h-4" />
+                          {tool.license}
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
               </div>
-              <p className="text-text-muted">{tool.description}</p>
+
+              <div className="grid grid-cols-4 gap-px bg-gray-200">
+                <div className="bg-white p-4 text-center">
+                  <p className="text-2xl font-bold text-blue-600">{String((tool as unknown as Record<string, unknown>).downloadCount || 0)}</p>
+                  <p className="text-sm text-gray-500">下载次数</p>
+                </div>
+                <div className="bg-white p-4 text-center">
+                  <p className="text-2xl font-bold text-green-600">{String((tool as unknown as Record<string, unknown>).starCount || 0)}</p>
+                  <p className="text-sm text-gray-500">收藏数</p>
+                </div>
+                <div className="bg-white p-4 text-center">
+                  <p className="text-2xl font-bold text-purple-600">{String((tool as unknown as Record<string, unknown>).viewCount || 0)}</p>
+                  <p className="text-sm text-gray-500">浏览数</p>
+                </div>
+                <div className="bg-white p-4 text-center">
+                  <p className="text-2xl font-bold text-orange-600">{String((tool as unknown as Record<string, unknown>).commentCount || 0)}</p>
+                  <p className="text-sm text-gray-500">评论数</p>
+                </div>
+              </div>
             </div>
 
-            {tool.screenshots && tool.screenshots.length > 0 && (
-              <div className="bg-white rounded-2xl p-6 border border-primary/20">
-                <h3 className="text-lg font-semibold text-theme-text mb-4">预览截图</h3>
-                <div className="grid gap-4">
-                  {tool.screenshots.map((screenshot, index) => {
-                    // 判断是完整URL还是存储key
-                    const src = screenshot.startsWith('http') 
-                      ? screenshot 
-                      : `/api/tools/screenshot/${encodeURIComponent(screenshot)}`;
-                    return (
-                      <img
-                        key={index}
-                        src={src}
-                        alt={`截图 ${index + 1}`}
-                        className="w-full rounded-xl object-cover h-64 bg-gray-100"
-                      />
-                    );
-                  })}
+            {tool.longDescription && (
+              <div className="bg-white rounded-xl shadow-sm border mt-6 p-6">
+                <h2 className="text-lg font-semibold mb-4">详细介绍</h2>
+                <div className="prose prose-gray max-w-none">
+                  <p className="text-gray-600 whitespace-pre-wrap">{tool.longDescription}</p>
                 </div>
               </div>
             )}
 
-            <div className="bg-white rounded-2xl p-6 border border-primary/20">
-              <h3 className="text-lg font-semibold text-theme-text mb-4">详细描述</h3>
-              <p className="text-text-muted leading-relaxed whitespace-pre-line">
-                {tool.longDescription || tool.description}
-              </p>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 border border-primary/20">
-              <h3 className="text-lg font-semibold text-theme-text mb-4">标签</h3>
-              <div className="flex flex-wrap gap-2">
-                {tool.tags.map((tag, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-sm"
-                  >
-                    {tag}
-                  </span>
-                ))}
+            {tool.tags && tool.tags.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border mt-6 p-6">
+                <h2 className="text-lg font-semibold mb-4">标签</h2>
+                <div className="flex flex-wrap gap-2">
+                  {tool.tags.map((tag, index) => (
+                    <span key={index} className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="bg-white rounded-2xl p-6 border border-primary/20">
-              <h3 className="text-lg font-semibold text-theme-text mb-4">用户评论</h3>
-              <CommentSection comments={tool.comments} toolId={tool.id} />
-            </div>
+            {tool.compatibility && (
+              <div className="bg-white rounded-xl shadow-sm border mt-6 p-6">
+                <h2 className="text-lg font-semibold mb-4">兼容性</h2>
+                <div className="flex flex-wrap gap-2">
+                  {tool.compatibility.map((item, index) => (
+                    <span key={index} className="px-3 py-1 bg-green-100 text-green-600 rounded-full text-sm flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {tool.screenshots && tool.screenshots.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border mt-6 p-6">
+                <h2 className="text-lg font-semibold mb-4">截图</h2>
+                <div className="grid grid-cols-2 gap-4">
+                  {tool.screenshots.map((screenshot, index) => (
+                    <img
+                      key={index}
+                      src={screenshot}
+                      alt={`截图 ${index + 1}`}
+                      className="w-full h-48 object-cover rounded-lg"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <CommentSection toolId={tool.id} comments={[]} />
           </div>
 
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl p-6 border border-primary/20 sticky top-24">
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-blue-50 rounded-xl p-4 text-center">
-                  <p className="text-xl font-bold text-blue-600">{(tool.downloads ?? 0).toLocaleString()}</p>
-                  <p className="text-xs text-text-muted mt-1 flex items-center justify-center gap-1">
-                    <Download className="w-3 h-3" />
-                    下载次数
-                  </p>
-                </div>
-                <div className="bg-green-50 rounded-xl p-4 text-center">
-                  <p className="text-xl font-bold text-green-600">{(tool.views ?? 0).toLocaleString()}</p>
-                  <p className="text-xs text-text-muted mt-1 flex items-center justify-center gap-1">
-                    <Eye className="w-3 h-3" />
-                    浏览次数
-                  </p>
-                </div>
-                <div className="bg-yellow-50 rounded-xl p-4 text-center">
-                  <p className="text-xl font-bold text-yellow-600">{tool.stars ?? 0}</p>
-                  <p className="text-xs text-text-muted mt-1 flex items-center justify-center gap-1">
-                    <Star className="w-3 h-3" />
-                    收藏数
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3 mb-6">
-                <div className="flex items-center justify-between py-3 border-b border-primary/10">
-                  <span className="text-sm text-text-muted flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    版本
-                  </span>
-                  <span className="font-medium text-theme-text">{tool.version ?? '-'}</span>
-                </div>
-                <div className="flex items-center justify-between py-3 border-b border-primary/10">
-                  <span className="text-sm text-text-muted">文件大小</span>
-                  <span className="font-medium text-theme-text">{tool.fileSize ?? '-'}</span>
-                </div>
-                <div className="flex items-center justify-between py-3 border-b border-primary/10">
-                  <span className="text-sm text-text-muted flex items-center gap-2">
-                    <Shield className="w-4 h-4" />
-                    许可证
-                  </span>
-                  <span className="font-medium text-theme-text">{tool.license ?? '-'}</span>
-                </div>
-                <div className="flex items-center justify-between py-3 border-b border-primary/10">
-                  <span className="text-sm text-text-muted flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    创建时间
-                  </span>
-                  <span className="font-medium text-theme-text">{tool.createdAt ?? '-'}</span>
-                </div>
-                <div className="flex items-center justify-between py-3">
-                  <span className="text-sm text-text-muted">最后更新</span>
-                  <span className="font-medium text-theme-text">{tool.updatedAt ?? '-'}</span>
-                </div>
-              </div>
-
-              {(tool.compatibility ?? []).length > 0 && (
-                <div className="mb-6">
-                  <p className="text-sm font-medium text-theme-text mb-3">兼容性</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(tool.compatibility ?? []).map((item, index) => (
-                      <span
-                        key={index}
-                        className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full text-sm"
-                      >
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-primary/5 rounded-xl p-4 mb-6">
-                <div className="flex items-center gap-3">
-                  <span className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">
-                    {(tool.author ?? '?').charAt(0)}
-                  </span>
-                  <div className="flex-1">
-                    <p className="font-medium text-theme-text">{tool.author ?? '未知作者'}</p>
-                    <p className="text-xs text-text-muted">发布者</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 mb-4">
-                <button 
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 sticky top-6">
+              <div className="flex flex-col gap-4">
+                <button
                   onClick={handleDownload}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors font-medium"
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
                 >
                   <Download className="w-5 h-5" />
                   立即下载
                 </button>
-                <button 
-                  onClick={handleFavorite}
-                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-colors ${
-                    isFavorited 
-                      ? 'bg-red-100 text-red-500' 
-                      : 'bg-primary/10 text-primary hover:bg-primary/20'
-                  }`}
-                >
-                  <Heart className={`w-5 h-5 ${isFavorited ? 'fill-red-500' : ''}`} />
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleFavorite}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 border rounded-xl transition-colors ${isFavorited ? 'border-red-300 text-red-500' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    <Heart className="w-5 h-5" />
+                    {isFavorited ? '已收藏' : '收藏'}
+                  </button>
+                  <button
+                    onClick={handleShare}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors"
+                  >
+                    <Share2 className="w-5 h-5" />
+                    分享
+                  </button>
+                </div>
               </div>
+            </div>
 
-              <button 
-                onClick={handleShare}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
-              >
-                <Share2 className="w-5 h-5" />
-                分享工具
-              </button>
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h3 className="font-semibold mb-4">开发者信息</h3>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center">
+                  <span className="text-white font-medium">{tool.author.charAt(0)}</span>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">{tool.author}</p>
+                  <p className="text-sm text-gray-500">上传者</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </main>
+      </div>
+
+      {showShareToast && (
+        <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg">
+          链接已复制到剪贴板
+        </div>
+      )}
     </div>
   );
 }

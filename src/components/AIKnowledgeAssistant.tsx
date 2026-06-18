@@ -3,20 +3,28 @@ import { useState } from 'react';
 import { MessageCircle, Search, BookOpen, ExternalLink, ChevronRight, History, Sparkles, FileText } from 'lucide-react';
 import type { QAResult, KnowledgeSearchResult } from '@/types';
 import { aiAPI } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
+import LoginRequiredToast from './LoginRequiredToast';
 
 interface AIKnowledgeAssistantProps {
   onDocumentSelect?: (documentId: string) => void;
 }
 
 export default function AIKnowledgeAssistant({ onDocumentSelect }: AIKnowledgeAssistantProps) {
+  const { isAuthenticated } = useAuth();
   const [question, setQuestion] = useState('');
   const [qaResult, setQaResult] = useState<QAResult | null>(null);
   const [searchResult, setSearchResult] = useState<KnowledgeSearchResult | null>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [mode, setMode] = useState<'qa' | 'search'>('qa');
   const [history, setHistory] = useState<string[]>([]);
+  const [showLoginToast, setShowLoginToast] = useState(false);
 
   const handleSubmit = async () => {
+    if (!isAuthenticated) {
+      setShowLoginToast(true);
+      return;
+    }
     if (!question.trim()) return;
 
     setIsThinking(true);
@@ -270,6 +278,11 @@ export default function AIKnowledgeAssistant({ onDocumentSelect }: AIKnowledgeAs
           )}
         </div>
       )}
+
+      <LoginRequiredToast
+        show={showLoginToast}
+        onClose={() => setShowLoginToast(false)}
+      />
     </div>
   );
 }

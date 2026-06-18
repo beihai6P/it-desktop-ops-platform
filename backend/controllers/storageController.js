@@ -14,7 +14,14 @@ const {
   getExtension,
   parseRangeHeader,
   generateETag,
-  CHUNK_SIZE
+  CHUNK_SIZE,
+  generateDownloadToken,
+  generateSignedUrl,
+  fileExists,
+  getFileSize,
+  createReadStream,
+  chunkExists,
+  getUploadedChunks
 } = require('../utils/fileUtils');
 
 // 存储适配器实例（强制使用火山引擎对象存储）

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Search, Filter, Plus, Lock } from 'lucide-react';
 import PostCard from '@/components/PostCard';
 import CreatePostModal from '@/components/CreatePostModal';
+import LoginRequiredToast from '@/components/LoginRequiredToast';
 import type { Post } from '@/types';
 import { postAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,6 +32,7 @@ export default function Community() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('全部');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showLoginToast, setShowLoginToast] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,6 +62,10 @@ export default function Community() {
   });
 
   const handleLike = async (postId: string) => {
+    if (!isAuthenticated) {
+      setShowLoginToast(true);
+      return;
+    }
     try {
       await postAPI.like(postId);
       setPosts(posts.map((post) => {
@@ -78,6 +84,10 @@ export default function Community() {
   };
 
   const handleBookmark = async (postId: string) => {
+    if (!isAuthenticated) {
+      setShowLoginToast(true);
+      return;
+    }
     try {
       await postAPI.bookmark(postId);
       setPosts(posts.map((post) => {
@@ -123,7 +133,7 @@ export default function Community() {
             </button>
           ) : (
             <button
-              onClick={() => navigate('/login')}
+              onClick={() => setShowLoginToast(true)}
               className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-600 rounded-xl hover:bg-gray-300 transition-colors"
             >
               <Lock className="w-4 h-4" />
@@ -208,6 +218,11 @@ export default function Community() {
           onSubmit={handleCreatePost}
         />
       )}
+
+      <LoginRequiredToast
+        show={showLoginToast}
+        onClose={() => setShowLoginToast(false)}
+      />
     </div>
   );
 }

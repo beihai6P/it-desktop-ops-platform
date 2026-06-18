@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+﻿import { useState, useRef } from 'react';
 import {
   Upload as UploadIcon,
   CheckCircle,
@@ -12,42 +12,23 @@ import {
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
+import { storageScheduler } from '@/scheduler';
 
 interface FileItem {
   uid: string;
   name: string;
   size: number;
   type: string;
-  status: 'pending' | 'hashing' | 'checking' | 'uploading' | 'done' | 'error' | 'duplicate';
+  status: 'pending' | 'uploading' | 'done' | 'error' | 'duplicate';
   progress: number;
   fileId?: string;
-  presignedUrl?: string;
   error?: string;
-  sha256?: string;
   existingFile?: {
     fileId: string;
     originalName: string;
     size: number;
     uploadedAt: string;
   };
-}
-
-const CHUNK_SIZE = 5 * 1024 * 1024;
-const MIN_MULTIPART_SIZE = 4 * 1024 * 1024; // 火山引擎TOS要求每个分片至少4MB
-const MIN_FILE_FOR_MULTIPART = 8 * 1024 * 1024; // 文件至少8MB才使用分片上传（确保每个分片>=4MB）
-
-interface PresignedResult {
-  success: boolean;
-  fileId?: string;
-  presignedUrl?: string;
-  duplicate?: boolean;
-  existingFile?: {
-    fileId: string;
-    originalName: string;
-    size: number;
-    uploadedAt: string;
-  };
-  message?: string;
 }
 
 const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'private', multiple = true }: {
@@ -57,10 +38,8 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
   multiple?: boolean;
 }) => {
   const [fileList, setFileList] = useState<FileItem[]>([]);
-  const [duplicateModal, setDuplicateModal] = useState<{
-    visible: boolean;
-    item?: FileItem;
-  }>({ visible: false });
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [selectedDuplicateItem, setSelectedDuplicateItem] = useState<FileItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getFileIcon = (type: string) => {
@@ -76,174 +55,63 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   };
 
-  const calculateSHA256 = async (file: File): Promise<string | null> => {
-    try {
-      const cryptoObj = window.crypto || (window as unknown as { msCrypto?: Crypto }).msCrypto;
-      const fileSize = file.size;
-      
-      // 对于超过10MB的文件，跳过客户端计算，由后端处理
-      // 这样可以避免大文件导致的UI阻塞
-      if (fileSize > 10 * 1024 * 1024) {
-        console.log(`[指纹计算] 文件(${fileSize / 1024 / 1024}MB)，跳过客户端计算，由后端处理`);
-        return null;
-      }
-      
-      // 对于小文件，直接计算完整哈希
-      const arrayBuffer = await file.arrayBuffer();
-      const digest = await cryptoObj.subtle.digest('SHA-256', arrayBuffer);
-      const hashArray = Array.from(new Uint8Array(digest));
-      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      
-    } catch (error) {
-      console.error('计算SHA256失败:', error);
-      return null;
-    }
-  };
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
 
-  const validateFile = (file: File) => {
-    const allowedExtensions: Record<string, string[]> = {
-      image: ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'],
-      video: ['.mp4', '.mov', '.avi', '.webm'],
-      archive: ['.zip', '.rar', '.7z'],
-      document: ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', 
-                 '.txt', '.log', '.pdf', '.doc', '.docx', '.xls', '.xlsx', 
-                 '.ppt', '.pptx', '.html', '.htm', '.json', '.zip', '.rar', '.7z'],
-    };
-
-    const allowedTypes: Record<string, string[]> = {
-      image: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/pjpeg', 'image/x-png', 'image/bmp'],
-      video: ['video/mp4', 'video/quicktime', 'video/mpeg', 'video/x-msvideo', 'video/avi', 'video/webm'],
-      archive: ['application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed', 
-                'application/octet-stream', 'application/x-zip-compressed'],
-      document: [
-        'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp',
-        'text/plain', 'application/pdf',
-        'application/msword', 
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-powerpoint',
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'text/html', 'application/json',
-        'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed',
-      ],
-    };
-
-    const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-    const categoryExtensions = allowedExtensions[category] || [];
-    const categoryTypes = allowedTypes[category] || [];
-
-    if (!categoryExtensions.includes(ext) && !categoryTypes.includes(file.type)) {
-      return { valid: false, message: `不支持的文件类型，仅支持: ${categoryExtensions.join(', ')}` };
-    }
-
-    const sizeLimits: Record<string, number> = {
-      image: 20 * 1024 * 1024,
-      video: 200 * 1024 * 1024,
-      archive: 2 * 1024 * 1024 * 1024,
-      document: 50 * 1024 * 1024,
-    };
-
-    const maxSize = sizeLimits[category] || 2 * 1024 * 1024 * 1024;
-    if (file.size > maxSize) {
-      return { valid: false, message: `文件大小超过限制（最大${getFileSizeText(maxSize)}）` };
-    }
-
-    return { valid: true, message: '' };
-  };
-
-  const getPresignedUrl = async (file: File, sha256: string | null): Promise<PresignedResult> => {
-    const token = localStorage.getItem('token');
-    const response = await fetch('/api/presigned/upload-url', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        filename: file.name,
+    const newItems: FileItem[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      newItems.push({
+        uid: Date.now().toString() + '-' + i,
+        name: file.name,
         size: file.size,
-        mimeType: file.type,
+        type: file.type,
+        status: 'pending',
+        progress: 0,
+      });
+    }
+
+    setFileList(prev => [...prev, ...newItems]);
+    event.target.value = '';
+  };
+
+  const uploadFile = async (fileItem: FileItem, file: File) => {
+    try {
+      setFileList(prev => prev.map(item =>
+        item.uid === fileItem.uid ? { ...item, status: 'uploading', progress: 0 } : item
+      ));
+
+      const result = await storageScheduler.uploadFile(
+        file,
         category,
         accessLevel,
-        sha256,
-      }),
-    });
-
-    const data = await response.json();
-    return data;
-  };
-
-  const uploadFileDirectly = async (fileItem: FileItem, file: File, sha256: string | null) => {
-    try {
-      const result = await getPresignedUrl(file, sha256);
-      
-      if (!result.success) {
-        if (result.duplicate) {
+        (progress) => {
           setFileList(prev => prev.map(item =>
-            item.uid === fileItem.uid ? { 
-              ...item, 
-              status: 'duplicate', 
-              existingFile: result.existingFile 
-            } : item
+            item.uid === fileItem.uid ? { ...item, progress } : item
           ));
-        } else {
-          throw new Error(result.message || '获取上传URL失败');
         }
+      );
+
+      const resultData = result as unknown as Record<string, unknown>;
+
+      if (resultData.duplicate && resultData.existingFile) {
+        setFileList(prev => prev.map(item =>
+          item.uid === fileItem.uid ? {
+            ...item,
+            status: 'duplicate',
+            existingFile: resultData.existingFile as FileItem['existingFile']
+          } : item
+        ));
         return;
       }
 
-      const { fileId, presignedUrl } = result;
-
-      if (!fileId || !presignedUrl) {
-        throw new Error('获取上传URL失败');
-      }
-
       setFileList(prev => prev.map(item =>
-        item.uid === fileItem.uid ? { ...item, status: 'uploading', fileId, presignedUrl, progress: 0 } : item
-      ));
-
-      const response = await fetch(presignedUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`上传失败: ${response.status}`);
-      }
-
-      const etag = response.headers.get('ETag');
-
-      const token = localStorage.getItem('token');
-      const confirmResponse = await fetch('/api/presigned/confirm-upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          fileId,
-          etag,
-          hash: { sha256, md5: '' },
-        }),
-      });
-
-      const confirmData = await confirmResponse.json();
-      if (!confirmData.success) {
-        throw new Error(confirmData.message || '确认上传失败');
-      }
-
-      const downloadUrl = confirmData.file?.downloadUrl;
-
-      setFileList(prev => prev.map(item =>
-        item.uid === fileItem.uid ? { ...item, status: 'done', progress: 100 } : item
+        item.uid === fileItem.uid ? { ...item, status: 'done', progress: 100, fileId: resultData.fileId as string } : item
       ));
 
       if (onUploadComplete) {
-        onUploadComplete(fileId, file.name, downloadUrl);
+        onUploadComplete(resultData.fileId as string, file.name, resultData.downloadUrl as string | undefined);
       }
 
     } catch (error) {
@@ -254,748 +122,309 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
     }
   };
 
-  const uploadLargeFile = async (fileItem: FileItem, file: File, sha256: string | null) => {
-    try {
-      const token = localStorage.getItem('token');
-      // 计算分片数，确保每个分片至少4MB（火山引擎TOS要求）
-      const parts = Math.max(2, Math.ceil(file.size / CHUNK_SIZE));
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const files = event.dataTransfer.files;
+    if (!files) return;
 
-      // 步骤1：初始化分片，拿到所有分片预签名地址
-      const initResponse = await fetch('/api/presigned/multipart/init', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          filename: file.name,
-          size: file.size,
-          mimeType: file.type,
-          parts,
-          category,
-          accessLevel,
-          sha256,
-        }),
-      });
-
-      const initData = await initResponse.json();
-      
-      if (!initData.success) {
-        if (initData.duplicate) {
-          setFileList(prev => prev.map(item =>
-            item.uid === fileItem.uid ? { 
-              ...item, 
-              status: 'duplicate', 
-              existingFile: initData.existingFile 
-            } : item
-          ));
-        } else {
-          setFileList(prev => prev.map(item =>
-            item.uid === fileItem.uid ? { 
-              ...item, 
-              status: 'error', 
-              error: initData.message || '初始化分片上传失败' 
-            } : item
-          ));
-        }
-        return;
-      }
-
-      const { fileId, uploadId, partUrls } = initData;
-
-      if (!fileId || !uploadId || !partUrls || !Array.isArray(partUrls)) {
-        throw new Error('初始化分片上传失败：缺少必要参数');
-      }
-
-      setFileList(prev => prev.map(item =>
-        item.uid === fileItem.uid ? { ...item, status: 'uploading', fileId, progress: 0 } : item
-      ));
-
-      // 步骤2：循环上传每一个分片（前端直传TOS，不走后端代理）
-      const uploadedParts: Array<{ PartNumber: number; ETag: string }> = [];
-      const chunkSize = Math.ceil(file.size / partUrls.length);
-
-      console.log(`[分片上传] 开始上传 ${partUrls.length} 个分片，总大小: ${file.size} bytes`);
-      console.log(`[分片上传] uploadId: ${uploadId}`);
-      console.log(`[分片上传] fileId: ${fileId}`);
-
-      for (let i = 0; i < partUrls.length; i++) {
-        const partItem = partUrls[i];
-        const start = i * chunkSize;
-        const end = Math.min(start + chunkSize, file.size);
-        const chunk = file.slice(start, end);
-
-        console.log(`[分片上传] 开始上传分片 ${i + 1}/${partUrls.length}, partNumber: ${partItem.partNumber}, 大小: ${chunk.size} bytes`);
-        
-        // 直接调用TOS预签名URL上传分片，不走后端代理
-        const putResponse = await fetch(partItem.url, {
-          method: 'PUT',
-          body: chunk,
-          headers: {
-            'Content-Type': '',
-          },
-        });
-
-        console.log(`[分片上传] 分片 ${i + 1} PUT请求完成，status: ${putResponse.status}`);
-
-        if (!putResponse.ok) {
-          const errorText = `HTTP ${putResponse.status}`;
-          console.error(`[分片上传] 分片 ${i + 1} 上传失败: ${errorText}`);
-          throw new Error(`分片 ${i + 1} 上传失败: ${errorText}`);
-        }
-        
-        // 清洗ETag双引号
-        const etag = (putResponse.headers.get('etag') || '').replace(/"/g, '');
-        console.log(`[分片上传] 分片 ${i + 1} ETag: ${etag}`);
-        
-        uploadedParts.push({
-          PartNumber: partItem.partNumber,
-          ETag: etag,
-        });
-
-        // 更新上传进度
-        const progress = Math.round(((i + 1) / partUrls.length) * 100);
-        setFileList(prev => prev.map(item =>
-          item.uid === fileItem.uid ? { ...item, progress } : item
-        ));
-      }
-
-      // 步骤3：所有分片上传完毕，再调用complete合并
-      console.log(`[分片上传] 所有分片上传完成，准备调用complete，上传结果数: ${uploadedParts.length}`);
-      console.log(`[分片上传] 传给complete的参数`, { fileId, uploadId, partData: uploadedParts });
-
-      if (uploadedParts.length === 0) {
-        throw new Error('没有任何分片上传成功，无法完成合并');
-      }
-
-      const completeResponse = await fetch('/api/presigned/multipart/complete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          fileId,
-          uploadId,
-          partData: uploadedParts,
-          hash: { sha256, md5: '' },
-        }),
-      });
-
-      const completeData = await completeResponse.json();
-      if (!completeData.success) {
-        throw new Error(completeData.message || '完成分片上传失败');
-      }
-
-      const downloadUrl = completeData.file?.downloadUrl;
-
-      setFileList(prev => prev.map(item =>
-        item.uid === fileItem.uid ? { ...item, status: 'done', progress: 100 } : item
-      ));
-
-      if (onUploadComplete) {
-        onUploadComplete(fileId, file.name, downloadUrl);
-      }
-
-    } catch (error) {
-      console.error('分片上传失败:', error);
-      setFileList(prev => prev.map(item =>
-        item.uid === fileItem.uid ? { ...item, status: 'error', error: (error as Error).message } : item
-      ));
-    }
-  };
-
-  const handleFilesSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    for (const file of Array.from(files)) {
-      const validation = validateFile(file);
-      if (!validation.valid) {
-        const newItem: FileItem = {
-          uid: Date.now().toString() + Math.random(),
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          status: 'error',
-          progress: 0,
-          error: validation.message,
-        };
-        setFileList(prev => [...prev, newItem]);
-        continue;
-      }
-
-      const newItem: FileItem = {
-        uid: Date.now().toString() + Math.random(),
+    const newItems: FileItem[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      newItems.push({
+        uid: Date.now().toString() + '-' + i,
         name: file.name,
         size: file.size,
         type: file.type,
-        status: 'hashing',
+        status: 'pending',
         progress: 0,
-      };
-
-      setFileList(prev => [...prev, newItem]);
-
-      try {
-        const sha256 = await calculateSHA256(file);
-
-        if (file.size >= MIN_FILE_FOR_MULTIPART) {
-          setFileList(prev => prev.map(item =>
-            item.uid === newItem.uid ? { ...item, sha256, status: 'uploading', progress: 0 } : item
-          ));
-          await uploadLargeFile(newItem, file, sha256);
-        } else {
-          if (sha256) {
-            setFileList(prev => prev.map(item =>
-              item.uid === newItem.uid ? { ...item, sha256, status: 'checking' } : item
-            ));
-          } else {
-            setFileList(prev => prev.map(item =>
-              item.uid === newItem.uid ? { ...item, sha256: null, status: 'uploading', progress: 0 } : item
-            ));
-          }
-          await uploadFileDirectly(newItem, file, sha256);
-        }
-      } catch (error) {
-        console.error('上传流程失败:', error);
-        setFileList(prev => prev.map(item =>
-          item.uid === newItem.uid ? { ...item, status: 'error', error: (error as Error).message } : item
-        ));
-      }
+      });
     }
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }, [category, accessLevel, onUploadComplete]);
+    setFileList(prev => [...prev, ...newItems]);
+  };
 
-  const handleRemove = useCallback((uid: string) => {
-    setFileList(prev => prev.filter(item => item.uid !== uid));
-  }, []);
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+  };
 
-  const handleRetry = useCallback((uid: string) => {
-    const item = fileList.find(i => i.uid === uid);
-    if (item) {
+  const handleUploadAll = async () => {
+    const pendingItems = fileList.filter(item => item.status === 'pending' || item.status === 'error');
+    
+    for (const item of pendingItems) {
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = category === 'image' ? 'image/jpeg,image/png,image/webp,image/gif' :
-                     category === 'video' ? 'video/mp4,video/quicktime' :
-                     category === 'document' ? 'image/*,.txt,.log,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z' :
-                     '.zip,.rar,.7z';
-      input.onchange = (e) => {
-        const files = (e.target as HTMLInputElement).files;
-        if (files && files[0]) {
-          const newItem: FileItem = {
-            uid: Date.now().toString() + Math.random(),
-            name: files[0].name,
-            size: files[0].size,
-            type: files[0].type,
-            status: 'hashing',
-            progress: 0,
-          };
-          setFileList(prev => prev.map(i => i.uid === uid ? newItem : i));
-          handleFilesSelected({ target: { files } } as React.ChangeEvent<HTMLInputElement>);
+      input.style.display = 'none';
+      input.accept = item.type || '';
+      document.body.appendChild(input);
+      
+      input.onchange = async (e) => {
+        const target = e.target as HTMLInputElement;
+        const file = target.files?.[0];
+        if (file) {
+          await uploadFile(item, file);
         }
+        document.body.removeChild(input);
       };
+      
       input.click();
     }
-  }, [fileList, category, handleFilesSelected]);
+  };
 
-  const handleDuplicateConfirm = useCallback((item: FileItem) => {
+  const handleUploadSingle = async (uid: string) => {
+    const item = fileList.find(f => f.uid === uid);
+    if (!item || item.status !== 'pending') return;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+
+    input.onchange = async (e) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      if (file) {
+        await uploadFile(item, file);
+      }
+      document.body.removeChild(input);
+    };
+
+    input.click();
+  };
+
+  const handleRemove = (uid: string) => {
+    setFileList(prev => prev.filter(item => item.uid !== uid));
+  };
+
+  const handleRetry = async (uid: string) => {
+    const item = fileList.find(f => f.uid === uid);
+    if (!item) return;
+
+    setFileList(prev => prev.map(i =>
+      i.uid === uid ? { ...i, status: 'pending', progress: 0, error: undefined } : i
+    ));
+  };
+
+  const handleConfirmDuplicate = (item: FileItem) => {
+    if (!item.existingFile) return;
+
+    setFileList(prev => prev.map(i =>
+      i.uid === item.uid ? { ...i, status: 'done', progress: 100, fileId: item.existingFile!.fileId } : i
+    ));
+
     if (onUploadComplete && item.existingFile) {
-      onUploadComplete(item.existingFile.fileId, item.existingFile.originalName);
+      onUploadComplete(item.existingFile.fileId, item.name);
     }
-    handleRemove(item.uid);
-    setDuplicateModal({ visible: false });
-  }, [onUploadComplete, handleRemove]);
 
-  const getStatusIcon = (status: FileItem['status']) => {
-    switch (status) {
-      case 'pending':
-        return <Clock className="w-5 h-5 text-gray-400" />;
-      case 'hashing':
-        return <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />;
-      case 'checking':
-        return <Loader2 className="w-5 h-5 text-yellow-500 animate-spin" />;
-      case 'uploading':
-        return <CloudUpload className="w-5 h-5 text-green-500" />;
-      case 'done':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'error':
-        return <AlertCircle className="w-5 h-5 text-red-500" />;
-      case 'duplicate':
-        return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
-      default:
-        return null;
-    }
+    setShowDuplicateModal(false);
+    setSelectedDuplicateItem(null);
   };
 
-  const getStatusText = (status: FileItem['status']) => {
-    switch (status) {
-      case 'pending':
-        return '等待上传';
-      case 'hashing':
-        return '计算文件指纹...';
-      case 'checking':
-        return '检查重复文件...';
-      case 'uploading':
-        return '上传中';
-      case 'done':
-        return '上传完成';
-      case 'error':
-        return '上传失败';
-      case 'duplicate':
-        return '文件已存在';
-      default:
-        return '';
-    }
+  const handleCancelDuplicate = () => {
+    setShowDuplicateModal(false);
+    setSelectedDuplicateItem(null);
   };
 
-  const handleButtonClick = () => {
-    fileInputRef.current?.click();
-  };
+  const pendingCount = fileList.filter(f => f.status === 'pending').length;
+  const uploadingCount = fileList.filter(f => f.status === 'uploading').length;
 
   return (
-    <div className="direct-upload">
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple={multiple}
-        accept={category === 'image' ? 'image/jpeg,image/png,image/webp,image/gif' :
-                 category === 'video' ? 'video/mp4,video/quicktime' :
-                 category === 'document' ? 'image/*,.txt,.log,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z' :
-                 '.zip,.rar,.7z'}
-        onChange={handleFilesSelected}
-        className="hidden"
-      />
+    <div className="w-full">
+      <div
+        className="border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer hover:border-blue-400"
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple={multiple}
+          className="hidden"
+          onChange={handleFileSelect}
+          accept={category === 'image' ? 'image/*' : category === 'video' ? 'video/*' : undefined}
+        />
+        <CloudUpload className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+        <p className="text-lg font-medium text-gray-700 mb-2">
+          {fileList.length > 0 ? '以下是你已选择的文件' : '拖拽文件到此处或点击上传'}
+        </p>
+        <p className="text-sm text-gray-500">
+          支持 JPG, PNG, PDF, DOC, ZIP 等格式
+        </p>
+      </div>
 
-      <button className="upload-btn" onClick={handleButtonClick}>
-        <UploadIcon className="w-5 h-5" />
-        选择文件
-      </button>
-
-      <div className="upload-list">
-        {fileList.map(item => (
-          <div key={item.uid} className={`upload-item ${item.status}`}>
-            <div className="file-info">
-              <span className="file-icon">{getFileIcon(item.type)}</span>
-              <div className="file-details">
-                <span className="file-name">{item.name}</span>
-                <span className="file-size">{getFileSizeText(item.size)}</span>
-              </div>
-            </div>
-
-            <div className="status-section">
-              {getStatusIcon(item.status)}
-              <span className="status-text">{getStatusText(item.status)}</span>
-            </div>
-
-            {item.status === 'uploading' && (
-              <div className="upload-progress">
-                <div className="progress-bar">
-                  <div className="progress-fill" style={{ width: `${item.progress}%` }}></div>
-                </div>
-                <span className="progress-text">{item.progress}%</span>
-              </div>
-            )}
-
-            {item.status === 'hashing' && (
-              <div className="upload-progress">
-                <div className="progress-bar">
-                  <div className="progress-fill indeterminate"></div>
-                </div>
-                <span className="progress-text">处理中...</span>
-              </div>
-            )}
-
-            {item.status === 'error' && (
-              <div className="error-details">
-                <span className="error-text">{item.error}</span>
-                <button onClick={() => handleRetry(item.uid)} className="retry-btn">
-                  重试
-                </button>
-              </div>
-            )}
-
-            {item.status === 'duplicate' && (
-              <div className="duplicate-actions">
-                <button onClick={() => setDuplicateModal({ visible: true, item })} className="use-existing-btn">
-                  使用已存在文件
-                </button>
-                <button onClick={() => handleRemove(item.uid)} className="cancel-btn">
-                  取消
-                </button>
-              </div>
-            )}
-
-            {(item.status === 'done' || item.status === 'pending') && (
-              <button onClick={() => handleRemove(item.uid)} className="remove-btn">
-                移除
+      {fileList.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm text-gray-600">共 {fileList.length} 个文件</span>
+            {pendingCount > 0 && (
+              <button
+                onClick={handleUploadAll}
+                disabled={uploadingCount > 0}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                {uploadingCount > 0 ? '上传中...' : '全部上传'}
               </button>
             )}
           </div>
-        ))}
-      </div>
 
-      <div className={`modal-overlay ${duplicateModal.visible ? 'visible' : ''}`}>
-        <div className="modal-content">
-          <h3 className="modal-title">文件已存在</h3>
-          {duplicateModal.item && (
-            <div className="duplicate-modal-content">
-              <p>检测到相同的文件已存在于服务器：</p>
-              <div className="file-info-card">
-                <FileText className="icon" />
-                <div className="info">
-                  <span className="name">{duplicateModal.item.existingFile?.originalName}</span>
-                  <span className="size">{getFileSizeText(duplicateModal.item.existingFile?.size || 0)}</span>
-                  <span className="upload-time">上传时间：{new Date(duplicateModal.item.existingFile?.uploadedAt).toLocaleString()}</span>
+          <div className="space-y-3">
+            {fileList.map(item => (
+              <div
+                key={item.uid}
+                className="flex items-center gap-4 p-4 bg-white border rounded-lg shadow-sm"
+              >
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-gray-100">
+                  {item.status === 'done' ? (
+                    <CheckCircle className="w-6 h-6 text-green-500" />
+                  ) : item.status === 'error' ? (
+                    <AlertCircle className="w-6 h-6 text-red-500" />
+                  ) : item.status === 'duplicate' ? (
+                    <AlertTriangle className="w-6 h-6 text-yellow-500" />
+                  ) : item.status === 'uploading' ? (
+                    <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                  ) : (
+                    getFileIcon(item.type)
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{item.name}</p>
+                  <p className="text-sm text-gray-500">{getFileSizeText(item.size)}</p>
+                  {item.status === 'uploading' && (
+                    <div className="mt-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-blue-500 h-2 rounded-full transition-all"
+                          style={{ width: `${item.progress}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-500 mt-1 block">{item.progress}%</span>
+                    </div>
+                  )}
+                  {item.error && (
+                    <p className="text-sm text-red-500 mt-1">{item.error}</p>
+                  )}
+                  {item.status === 'duplicate' && item.existingFile && (
+                    <p className="text-sm text-yellow-600 mt-1">
+                      已存在相同文件: {item.existingFile.originalName} ({getFileSizeText(item.existingFile.size)})
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {item.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => handleUploadSingle(item.uid)}
+                        className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
+                        title="上传"
+                      >
+                        <UploadIcon className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleRemove(item.uid)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                        title="删除"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
+                  {item.status === 'uploading' && (
+                    <Clock className="w-5 h-5 text-blue-500" />
+                  )}
+                  {item.status === 'done' && (
+                    <button
+                      onClick={() => handleRemove(item.uid)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                      title="删除"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                  {item.status === 'error' && (
+                    <>
+                      <button
+                        onClick={() => handleRetry(item.uid)}
+                        className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
+                        title="重试"
+                      >
+                        <RefreshCw className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleRemove(item.uid)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                        title="删除"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
+                  {item.status === 'duplicate' && (
+                    <>
+                      <button
+                        onClick={() => { setSelectedDuplicateItem(item); setShowDuplicateModal(true); }}
+                        className="px-3 py-1 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                      >
+                        使用已有文件
+                      </button>
+                      <button
+                        onClick={() => handleRemove(item.uid)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                        title="删除"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-              <p className="tip">是否直接使用已存在的文件，无需重新上传？</p>
-            </div>
-          )}
-          <div className="modal-footer">
-            <button onClick={() => setDuplicateModal({ visible: false })} className="modal-btn cancel">
-              取消
-            </button>
-            <button onClick={() => duplicateModal.item && handleDuplicateConfirm(duplicateModal.item)} className="modal-btn confirm">
-              确认使用已存在文件
-            </button>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
-      <style>{`
-        .direct-upload {
-          width: 100%;
-        }
-
-        .upload-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 20px;
-          background: #1890ff;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          transition: background 0.3s;
-        }
-
-        .upload-btn:hover {
-          background: #40a9ff;
-        }
-
-        .upload-list {
-          margin-top: 16px;
-          max-height: 400px;
-          overflow-y: auto;
-        }
-
-        .upload-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 16px;
-          border: 1px solid #e8e8e8;
-          border-radius: 8px;
-          margin-bottom: 12px;
-          background: #fafafa;
-          transition: all 0.3s;
-        }
-
-        .upload-item:hover {
-          background: #fff;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-        }
-
-        .file-info {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex: 1;
-          min-width: 0;
-        }
-
-        .file-icon {
-          font-size: 24px;
-          color: #1890ff;
-          flex-shrink: 0;
-        }
-
-        .file-details {
-          display: flex;
-          flex-direction: column;
-          min-width: 0;
-        }
-
-        .file-name {
-          font-size: 14px;
-          font-weight: 500;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          color: #333;
-        }
-
-        .file-size {
-          font-size: 12px;
-          color: #999;
-          margin-top: 4px;
-        }
-
-        .status-section {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          min-width: 100px;
-          justify-content: center;
-        }
-
-        .status-text {
-          font-size: 12px;
-          color: #666;
-        }
-
-        .upload-progress {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          width: 180px;
-          flex-shrink: 0;
-        }
-
-        .progress-bar {
-          flex: 1;
-          height: 6px;
-          background: #e8e8e8;
-          border-radius: 3px;
-          overflow: hidden;
-        }
-
-        .progress-fill {
-          height: 100%;
-          background: #52c41a;
-          transition: width 0.3s;
-        }
-
-        .progress-fill.indeterminate {
-          width: 100%;
-          animation: progress-indeterminate 1.5s infinite;
-        }
-
-        @keyframes progress-indeterminate {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-
-        .progress-text {
-          font-size: 12px;
-          color: #666;
-          min-width: 35px;
-          text-align: right;
-        }
-
-        .error-details {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          color: #ff4d4f;
-        }
-
-        .error-text {
-          font-size: 12px;
-          color: #ff4d4f;
-        }
-
-        .retry-btn {
-          background: none;
-          border: 1px solid #ff4d4f;
-          color: #ff4d4f;
-          padding: 4px 12px;
-          border-radius: 4px;
-          font-size: 12px;
-          cursor: pointer;
-        }
-
-        .retry-btn:hover {
-          background: #fff2f0;
-        }
-
-        .duplicate-actions {
-          display: flex;
-          gap: 8px;
-        }
-
-        .use-existing-btn {
-          background: #52c41a;
-          color: white;
-          border: none;
-          padding: 6px 16px;
-          border-radius: 4px;
-          font-size: 12px;
-          cursor: pointer;
-        }
-
-        .use-existing-btn:hover {
-          background: #73d13d;
-        }
-
-        .cancel-btn {
-          background: none;
-          border: 1px solid #d9d9d9;
-          color: #666;
-          padding: 6px 16px;
-          border-radius: 4px;
-          font-size: 12px;
-          cursor: pointer;
-        }
-
-        .cancel-btn:hover {
-          background: #f5f5f5;
-        }
-
-        .remove-btn {
-          background: none;
-          border: 1px solid #d9d9d9;
-          color: #666;
-          padding: 6px 16px;
-          border-radius: 4px;
-          font-size: 12px;
-          cursor: pointer;
-        }
-
-        .remove-btn:hover {
-          background: #f5f5f5;
-        }
-
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          opacity: 0;
-          visibility: hidden;
-          transition: opacity 0.3s, visibility 0.3s;
-        }
-
-        .modal-overlay.visible {
-          opacity: 1;
-          visibility: visible;
-        }
-
-        .modal-content {
-          background: white;
-          border-radius: 12px;
-          padding: 24px;
-          width: 90%;
-          max-width: 400px;
-        }
-
-        .modal-title {
-          font-size: 18px;
-          font-weight: 600;
-          margin-bottom: 16px;
-          color: #333;
-        }
-
-        .duplicate-modal-content {
-          padding: 8px 0;
-        }
-
-        .file-info-card {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px;
-          background: #f6ffed;
-          border-radius: 8px;
-          margin: 12px 0;
-        }
-
-        .file-info-card .icon {
-          font-size: 32px;
-          color: #52c41a;
-        }
-
-        .file-info-card .info {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .file-info-card .name {
-          font-size: 14px;
-          font-weight: 500;
-          color: #333;
-        }
-
-        .file-info-card .size {
-          font-size: 12px;
-          color: #999;
-        }
-
-        .file-info-card .upload-time {
-          font-size: 12px;
-          color: #999;
-        }
-
-        .tip {
-          margin-top: 12px;
-          font-size: 13px;
-          color: #666;
-        }
-
-        .modal-footer {
-          display: flex;
-          justify-content: flex-end;
-          gap: 12px;
-          margin-top: 24px;
-        }
-
-        .modal-btn {
-          padding: 8px 20px;
-          border-radius: 4px;
-          font-size: 14px;
-          cursor: pointer;
-          border: none;
-        }
-
-        .modal-btn.cancel {
-          background: #f5f5f5;
-          color: #666;
-        }
-
-        .modal-btn.cancel:hover {
-          background: #e8e8e8;
-        }
-
-        .modal-btn.confirm {
-          background: #1890ff;
-          color: white;
-        }
-
-        .modal-btn.confirm:hover {
-          background: #40a9ff;
-        }
-
-        .animate-spin {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      {showDuplicateModal && selectedDuplicateItem && selectedDuplicateItem.existingFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">确认使用已有文件</h3>
+            <p className="text-gray-600 mb-4">
+              检测到相同文件已存在于服务器上：
+            </p>
+            <div className="bg-gray-50 rounded-lg p-4 mb-4">
+              <p className="font-medium">{selectedDuplicateItem.existingFile.originalName}</p>
+              <p className="text-sm text-gray-500">
+                大小: {getFileSizeText(selectedDuplicateItem.existingFile.size)}
+              </p>
+              <p className="text-sm text-gray-500">
+                上传时间: {selectedDuplicateItem.existingFile.uploadedAt}
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={handleCancelDuplicate}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => handleConfirmDuplicate(selectedDuplicateItem)}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              >
+                确认使用
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

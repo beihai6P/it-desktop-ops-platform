@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { User, Tag, Heart, MessageCircle, Bookmark, Share2, Eye, Clock, Send, ThumbsUp, Reply, Lock, ArrowLeft } from 'lucide-react';
 import type { Post, Comment } from '@/types';
@@ -20,12 +20,7 @@ export default function PostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadPost();
-    loadComments();
-  }, [id]);
-
-  const loadPost = async () => {
+  const loadPost = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
@@ -38,9 +33,9 @@ export default function PostDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
-  const loadComments = async () => {
+  const loadComments = useCallback(async () => {
     if (!id) return;
     try {
       const response = await commentAPI.getAll();
@@ -48,7 +43,12 @@ export default function PostDetailPage() {
     } catch (err) {
       logger.error('Failed to load comments:', err);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadPost();
+    loadComments();
+  }, [loadPost, loadComments]);
 
   const handleLike = async () => {
     if (!isAuthenticated) {

@@ -3,7 +3,6 @@ import type { TrendDataPoint } from '@/types';
 
 interface LineChartProps {
   data: TrendDataPoint[];
-  title?: string;
   color?: string;
   showPoints?: boolean;
   showArea?: boolean;
@@ -11,7 +10,6 @@ interface LineChartProps {
 
 export default function LineChart({ 
   data, 
-  title, 
   color = '#3B82F6', 
   showPoints = true,
   showArea = true

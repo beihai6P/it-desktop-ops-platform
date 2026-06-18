@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FlaskConical, AlertTriangle, AlertCircle, Info, CheckCircle, TrendingUp, Download, Share2, RefreshCw, BarChart3 } from 'lucide-react';
 import type { Experiment, ExperimentAnalysisResult, ExperimentComparisonResult } from '@/types';
 import { aiAPI } from '@/services/api';
@@ -13,13 +13,7 @@ export default function AIExperimentAnalyzer({ experiment }: AIExperimentAnalyze
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
 
-  useEffect(() => {
-    if (experiment.status === 'completed') {
-      analyzeExperiment();
-    }
-  }, [experiment]);
-
-  const analyzeExperiment = async () => {
+  const analyzeExperiment = useCallback(async () => {
     setIsAnalyzing(true);
     try {
       const response = await aiAPI.analyzeExperiment({
@@ -36,7 +30,13 @@ export default function AIExperimentAnalyzer({ experiment }: AIExperimentAnalyze
     } finally {
       setIsAnalyzing(false);
     }
-  };
+  }, [experiment.id, experiment.faultType, experiment.logs, experiment.result?.issues?.length]);
+
+  useEffect(() => {
+    if (experiment.status === 'completed') {
+      analyzeExperiment();
+    }
+  }, [experiment.status, analyzeExperiment]);
 
   const handleCompare = async () => {
     try {

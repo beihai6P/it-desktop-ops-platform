@@ -6,8 +6,9 @@ import {
   Sparkles, Calendar,
   ThumbsUp, Loader2, PlusCircle, Crown, Pin, Trash2
 } from 'lucide-react';
-import type { Case, CaseCategory, SortRule, QualityFilter, CaseStats, TrendDataPoint } from '@/types';
+import type { Case, CaseCategory, SortRule, QualityFilter, CaseStats } from '@/types';
 import CaseSubmit from '@/components/CaseSubmit';
+import LoginRequiredToast from '@/components/LoginRequiredToast';
 import AIDiagnosisAssistant from '@/components/AIDiagnosisAssistant';
 import { useAuth } from '@/contexts/AuthContext';
 import { caseAPI } from '@/services/api';
@@ -49,7 +50,7 @@ const severityColors = {
 
 export default function Diagnosis() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.isAdmin;
   
   const [cases, setCases] = useState<Case[]>([]);
@@ -58,54 +59,41 @@ export default function Diagnosis() {
   const [sortRule, setSortRule] = useState<SortRule>('latest');
   const [qualityFilter, setQualityFilter] = useState<QualityFilter>('all');
   const [stats, setStats] = useState<CaseStats | null>(null);
-  const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [showLoginToast, setShowLoginToast] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const detailRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    loadCases();
-    loadStats();
-  }, []);
-
-  const loadCases = async () => {
+  const loadCases = useCallback(async () => {
     setLoading(true);
     try {
       const response = await caseAPI.getAll({ limit: 50 });
-      if (response.data.cases) {
+      if (response.success && response.data?.cases) {
         setCases(response.data.cases);
-        setTrendData(generateTrendData(response.data.cases));
       }
     } catch (error) {
       console.error('Failed to load cases:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const response = await caseAPI.getStats();
-      if (response.data.success) {
-        setStats(response.data.data);
+      if (response.success && response.data) {
+        setStats(response.data);
       }
     } catch (error) {
       console.error('Failed to load stats:', error);
     }
-  };
+  }, []);
 
-  const generateTrendData = (data: Case[]): TrendDataPoint[] => {
-    const last7Days = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      const count = data.filter(c => c.createdAt.startsWith(dateStr)).length;
-      last7Days.push({ date: dateStr, value: count, label: `${date.getMonth() + 1}/${date.getDate()}` });
-    }
-    return last7Days;
-  };
+  useEffect(() => {
+    loadCases();
+    loadStats();
+  }, [loadCases, loadStats]);
 
   const filteredCases = useMemo(() => {
     let result = [...cases];
@@ -143,7 +131,7 @@ export default function Diagnosis() {
     return result;
   }, [cases, searchQuery, selectedCategory, sortRule, qualityFilter]);
 
-  const handleSubmit = async (data: Case) => {
+  const handleSubmit = async () => {
     try {
       loadCases();
       setShowSubmitModal(false);
@@ -153,6 +141,10 @@ export default function Diagnosis() {
   };
 
   const handleLike = useCallback(async (caseId: string) => {
+    if (!isAuthenticated) {
+      setShowLoginToast(true);
+      return;
+    }
     try {
       await caseAPI.like(caseId);
       setCases(prev =>
@@ -165,22 +157,7 @@ export default function Diagnosis() {
     } catch (error) {
       console.error('Failed to like case:', error);
     }
-  }, []);
-
-  const handleBookmark = useCallback(async (caseId: string) => {
-    try {
-      await caseAPI.bookmark(caseId);
-      setCases(prev =>
-        prev.map(c =>
-          c.id === caseId
-            ? { ...c, isBookmarked: !c.isBookmarked }
-            : c
-        )
-      );
-    } catch (error) {
-      console.error('Failed to bookmark case:', error);
-    }
-  }, []);
+  }, [isAuthenticated]);
 
   const handleDelete = useCallback(async (caseId: string) => {
     if (!window.confirm('确定要删除这个案例吗？此操作将同时删除相关附件，且无法撤销。')) {
@@ -249,11 +226,21 @@ export default function Diagnosis() {
                 AI智能诊断
               </button>
               <button
-                onClick={() => setShowSubmitModal(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-all hover:shadow-lg hover:shadow-primary/20"
+                onClick={() => {
+                  if (isAuthenticated) {
+                    setShowSubmitModal(true);
+                  } else {
+                    setShowLoginToast(true);
+                  }
+                }}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all hover:shadow-lg hover:shadow-primary/20 ${
+                  isAuthenticated
+                    ? 'bg-primary text-white hover:bg-primary-dark'
+                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                }`}
               >
                 <PlusCircle className="w-5 h-5" />
-                提交案例
+                {isAuthenticated ? '提交案例' : '登录后提交'}
               </button>
             </div>
           </div>
@@ -280,7 +267,8 @@ export default function Diagnosis() {
                   onCaseSelect={(caseId) => {
                     const foundCase = cases.find(c => c.id === caseId);
                     if (foundCase) {
-                      setSelectedCase(foundCase);
+                      // Navigate to case detail page
+                      navigate(`/cases/${caseId}`);
                     }
                   }}
                 />
@@ -577,6 +565,11 @@ export default function Diagnosis() {
           <Sparkles className="w-6 h-6 text-white" />
         </button>
       </div>
+
+      <LoginRequiredToast
+        show={showLoginToast}
+        onClose={() => setShowLoginToast(false)}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User as UserIcon,
@@ -125,7 +125,7 @@ export default function Profile() {
     }
   }, [user]);
 
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -140,7 +140,7 @@ export default function Profile() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const loadContent = async () => {
     if (!user) return;

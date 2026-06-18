@@ -49,13 +49,11 @@ const generateSandboxLogs = (): LogEntry[] => {
 export default function SimulationConsole({ isLogMode, environmentSource, productionLogs, sandboxLogs }: SimulationConsoleProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [currentLogs, setCurrentLogs] = useState<LogEntry[]>([]);
-  const [localSandboxLogs, setLocalSandboxLogs] = useState<LogEntry[]>([]);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const initial = sandboxLogs.length > 0 ? sandboxLogs : generateSandboxLogs();
     setCurrentLogs(initial);
-    setLocalSandboxLogs(initial);
   }, [sandboxLogs]);
 
   useEffect(() => {

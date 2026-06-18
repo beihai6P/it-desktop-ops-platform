@@ -1,5 +1,5 @@
 import { Bell, Search, User, Settings, HelpCircle, ChevronDown, LogOut, UserCircle, Menu, X, Cpu, BarChart3, FlaskConical, Users, MessageSquare, BookOpen, Wrench, Shield, UserCog, LayoutDashboard, CheckSquare, Home } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import NotificationCenter from './NotificationCenter';
@@ -74,7 +74,7 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = useCallback(async () => {
     if (isLoading) return;
     setIsLoading(true);
     try {
@@ -87,7 +87,7 @@ export default function Header() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isLoading]);
 
   const handleLogout = () => {
     setShowUserMenu(false);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { userAPI } from '@/services/api';
 import {
@@ -56,12 +56,7 @@ const UserManagement: React.FC = () => {
 
   const limit = 10;
 
-  useEffect(() => {
-    fetchUsers();
-    fetchStats();
-  }, [currentPage, search, statusFilter, roleFilter]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
       const params = {
@@ -80,16 +75,21 @@ const UserManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, search, statusFilter, roleFilter]);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const response = await userAPI.getStats();
       setStats(response.data.data);
     } catch (error) {
       console.error('获取用户统计失败:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+    fetchStats();
+  }, [fetchUsers, fetchStats]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

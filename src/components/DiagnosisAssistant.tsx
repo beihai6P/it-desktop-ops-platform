@@ -1,11 +1,26 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Sparkles, MessageCircle, ChevronRight, AlertCircle, Zap, History, X, Send, BookOpen, Lightbulb, Trash2 } from 'lucide-react';
-import type { Case, DiagnosisHistory } from '@/types';
-import { mockCases, quickSymptomTags } from '@/data/mockData';
+import type { DiagnosisHistory } from '@/types';
+import { caseAPI } from '@/services/api';
 
 interface DiagnosisAssistantProps {
-  onCaseSelect: (caseItem: Case) => void;
+  onCaseSelect?: (caseId: string) => void;
 }
+
+interface APICase {
+  id: string;
+  title: string;
+  author: string;
+  deviceType: string;
+  views: number;
+  symptoms?: string[];
+}
+
+const commonSymptoms = [
+  '系统无法正常关机', 'Office崩溃', '网络连接问题', 'DNS故障',
+  '打印机脱机', '虚拟机卡顿', '蓝屏错误', '更新失败',
+  '认证失败', '连接超时', '无法打印', '应用无响应'
+];
 
 export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantProps) {
   const [inputText, setInputText] = useState('');
@@ -15,12 +30,11 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
   const [diagnosisResult, setDiagnosisResult] = useState<{
     simpleSteps: string[];
     advancedSteps: string[];
-    matchedCases: { case: Case; score: number; matchedSymptoms: string[] }[];
+    matchedCases: { id: string; title: string; author: string; deviceType: string; score: number; matchedSymptoms: string[] }[];
   } | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const historyRef = useRef<HTMLDivElement>(null);
 
-  // 从localStorage加载历史记录
   useEffect(() => {
     const saved = localStorage.getItem('diagnosisHistory');
     if (saved) {
@@ -32,15 +46,11 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
     }
   }, []);
 
-  // 保存历史记录到localStorage
   const saveHistory = (newHistory: DiagnosisHistory[]) => {
     const trimmed = newHistory.slice(0, 10);
     setHistory(trimmed);
     localStorage.setItem('diagnosisHistory', JSON.stringify(trimmed));
   };
-
-  // 快捷症状标签
-  const commonSymptoms = useMemo(() => quickSymptomTags.slice(0, 12), []);
 
   // 添加症状到输入框
   const handleSymptomClick = (symptom: string) => {
@@ -67,30 +77,39 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
   };
 
   // 执行诊断
-  const analyzeSymptoms = () => {
+  const analyzeSymptoms = async () => {
     if (!inputText.trim()) return;
 
     setIsAnalyzing(true);
     setDiagnosisResult(null);
 
-    setTimeout(() => {
+    try {
       const symptoms = inputText.split('、').filter(s => s.trim());
       
-      // 匹配案例
-      const matchedCases = mockCases.map((caseItem) => {
-        const matched = caseItem.symptoms.filter((s) =>
+      const response = await caseAPI.search({
+        query: symptoms.join(' '),
+        limit: 5
+      });
+      
+      const apiCases = response.data.cases || [];
+      
+      const matchedCases = apiCases.map((caseItem: APICase) => {
+        const matched = (caseItem.symptoms || []).filter((s: string) =>
           symptoms.some((ss) => s.includes(ss) || ss.includes(s))
         );
-        const score = matched.length / Math.max(caseItem.symptoms.length, symptoms.length) * 100;
-        return { case: caseItem, score: Math.round(score), matchedSymptoms: matched };
+        const score = matched.length / Math.max((caseItem.symptoms?.length || 1), symptoms.length) * 100;
+        return { 
+          id: caseItem.id,
+          title: caseItem.title,
+          author: caseItem.author,
+          deviceType: caseItem.deviceType,
+          score: Math.round(score), 
+          matchedSymptoms: matched 
+        };
       }).filter((r) => r.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5);
+        .sort((a, b) => b.score - a.score);
 
-      // 生成简易步骤（面向普通用户）
       const simpleSteps = generateSimpleSteps(symptoms);
-      
-      // 生成专业步骤（面向运维工程师）
       const advancedSteps = generateAdvancedSteps(symptoms);
 
       setDiagnosisResult({
@@ -99,7 +118,6 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
         matchedCases
       });
 
-      // 保存历史记录
       const newHistoryItem: DiagnosisHistory = {
         id: `history-${Date.now()}`,
         symptoms,
@@ -107,9 +125,19 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
         resultCount: matchedCases.length
       };
       saveHistory([newHistoryItem, ...history]);
-
+    } catch (error) {
+      console.error('Diagnosis failed:', error);
+      
+      const symptoms = inputText.split('、').filter(s => s.trim());
+      
+      setDiagnosisResult({
+        simpleSteps: generateSimpleSteps(symptoms),
+        advancedSteps: generateAdvancedSteps(symptoms),
+        matchedCases: []
+      });
+    } finally {
       setIsAnalyzing(false);
-    }, 2000);
+    }
   };
 
   // 生成简易修复步骤
@@ -406,16 +434,16 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
                 <span className="text-sm text-text-muted">({diagnosisResult.matchedCases.length}个)</span>
               </div>
               <div className="space-y-3">
-                {diagnosisResult.matchedCases.map(({ case: caseItem, score, matchedSymptoms }) => (
+                {diagnosisResult.matchedCases.map(({ id, title, author, deviceType, score, matchedSymptoms }) => (
                   <div
-                    key={caseItem.id}
-                    onClick={() => onCaseSelect(caseItem)}
+                    key={id}
+                    onClick={() => onCaseSelect?.(id)}
                     className="p-4 bg-theme-bg rounded-xl hover:bg-primary/5 transition-colors cursor-pointer border border-primary/10"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
-                        <p className="font-medium text-theme-text line-clamp-2">{caseItem.title}</p>
-                        <p className="text-sm text-text-muted mt-1">{caseItem.author} · {caseItem.deviceType}</p>
+                        <p className="font-medium text-theme-text line-clamp-2">{title}</p>
+                        <p className="text-sm text-text-muted mt-1">{author} · {deviceType}</p>
                       </div>
                       <span className={`px-2 py-1 rounded-full text-xs font-bold ${getScoreBgColor(score)} ${getScoreColor(score)}`}>
                         {score}%匹配

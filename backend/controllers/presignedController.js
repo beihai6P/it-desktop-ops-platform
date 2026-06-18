@@ -273,7 +273,9 @@ const confirmUpload = async (req, res) => {
     
     // 2. 如果已经是active状态，直接返回成功（幂等性）
     if (existingFile.status === 'active') {
-      const downloadUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/presigned/download-url/${existingFile.fileId}`;
+      const protocol = req.protocol;
+      const host = req.get('host');
+      const downloadUrl = `${protocol}://${host}/api/presigned/download-url/${existingFile.fileId}`;
       return res.json({
         success: true,
         message: '文件已上传',
@@ -338,7 +340,9 @@ const confirmUpload = async (req, res) => {
     
     await existingFile.save();
 
-    const downloadUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/presigned/download-url/${existingFile.fileId}`;
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const downloadUrl = `${protocol}://${host}/api/presigned/download-url/${existingFile.fileId}`;
     
     res.json({
       success: true,

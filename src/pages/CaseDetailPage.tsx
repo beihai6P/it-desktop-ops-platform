@@ -2,14 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, ThumbsUp, MessageSquare, Eye, Calendar, CheckCircle, AlertCircle,
-  Bookmark, Share2, Download, Copy, Send,
+  Bookmark, Share2, Download, Copy, Send, Check,
   User, FileText, Crown, Pin, Trash2,
   BookOpen, Lightbulb, ChevronDown, ChevronUp, Image, FileArchive, File
 } from 'lucide-react';
 import type { Case, CaseComment, CaseReply } from '@/types';
 import { caseAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { mockComments } from '@/data/mockData';
 
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,16 +26,20 @@ export default function CaseDetailPage() {
   const [showComments, setShowComments] = useState(false);
   const [copiedStep, setCopiedStep] = useState<number | null>(null);
 
-  useEffect(() => {
-    loadCase();
+  const loadComments = useCallback(async () => {
+    if (!id) return;
+    try {
+      const response = await caseAPI.getComments(id);
+      setComments(response.data.comments);
+    } catch (err) {
+      console.error('Failed to load comments:', err);
+    }
   }, [id]);
 
   useEffect(() => {
-    if (currentCase) {
-      const caseComments = mockComments.filter(c => c.caseId === currentCase.id);
-      setComments(caseComments);
-    }
-  }, [currentCase]);
+    loadCase();
+    loadComments();
+  }, [id, loadCase, loadComments]);
 
   const loadCase = async () => {
     if (!id) return;
@@ -525,9 +528,6 @@ ${currentCase.steps.map(s => `${s.step}. ${s.title}\n   ${s.description}\n   ${s
                             className="max-w-full max-h-full object-contain"
                           />
                         </div>
-                        <div className="p-3">
-                          <p className="text-sm text-text-muted truncate">{img.name}</p>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -553,9 +553,6 @@ ${currentCase.steps.map(s => `${s.step}. ${s.title}\n   ${s.description}\n   ${s
                             className="max-w-full max-h-full object-contain"
                           />
                         </div>
-                        <div className="p-3">
-                          <p className="text-sm text-text-muted truncate">{img.name}</p>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -580,9 +577,6 @@ ${currentCase.steps.map(s => `${s.step}. ${s.title}\n   ${s.description}\n   ${s
                             alt={img.name}
                             className="max-w-full max-h-full object-contain"
                           />
-                        </div>
-                        <div className="p-3">
-                          <p className="text-sm text-text-muted truncate">{img.name}</p>
                         </div>
                       </div>
                     ))}
@@ -649,8 +643,9 @@ ${currentCase.steps.map(s => `${s.step}. ${s.title}\n   ${s.description}\n   ${s
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {currentCase.attachments.map((attachment, index) => {
-                      const FileIcon = getFileIcon(attachment.mimeType, attachment.name);
-                      const isImg = isImage(attachment.mimeType, attachment.name);
+                      const attachmentData = attachment as unknown as Record<string, unknown>;
+                      const FileIcon = getFileIcon(attachmentData.mimeType as string | undefined, attachment.name);
+                      const isImg = isImage(attachmentData.mimeType as string | undefined, attachment.name);
                       
                       return (
                         <div key={index} className="bg-gray-50 rounded-xl overflow-hidden">
@@ -665,7 +660,7 @@ ${currentCase.steps.map(s => `${s.step}. ${s.title}\n   ${s.description}\n   ${s
                           )}
                           <div className="p-4">
                             <div className="flex items-center gap-3 mb-2">
-                              <FileIcon className={`w-5 h-5 ${isImg ? 'text-green-500' : isDocument(attachment.mimeType) ? 'text-blue-500' : 'text-gray-500'}`} />
+                              <FileIcon className={`w-5 h-5 ${isImg ? 'text-green-500' : isDocument(attachmentData.mimeType as string | undefined) ? 'text-blue-500' : 'text-gray-500'}`} />
                               <span className="font-medium text-theme-text truncate">{attachment.name}</span>
                             </div>
                             {attachment.size && (

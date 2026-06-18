@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Server, Database, Shield, Bell, Globe, Save, RefreshCw, Brain, DatabaseIcon, Eye, AlertCircle, CheckCircle } from 'lucide-react';
 import { settingsAPI } from '../services/api';
+import { scheduler } from '@scheduler';
 import type { SystemSettings } from '../types';
 
 export default function Settings() {
@@ -562,7 +563,7 @@ export default function Settings() {
                   <Globe className="w-5 h-5 text-text-muted" />
                   <div>
                     <p className="font-medium text-theme-text">API 端点</p>
-                    <p className="text-sm text-text-muted">http://localhost:5000/api</p>
+                    <p className="text-sm text-text-muted">{scheduler.config.api.baseUrl}</p>
                   </div>
                 </div>
               </div>

@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Download, Eye, Heart, Share2, Bookmark, ArrowLeft, Calendar, User, Tag } from 'lucide-react';
 import type { Document } from '@/types';
-import { mockDocuments } from '@/data/mockData';
 import { documentAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { logger } from '@/lib/logger';
@@ -15,11 +14,7 @@ export default function DocumentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadDocument();
-  }, [id]);
-
-  const loadDocument = async () => {
+  const loadDocument = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
@@ -27,17 +22,16 @@ export default function DocumentDetailPage() {
       const response = await documentAPI.getById(id);
       setDocument(response.data.document);
     } catch (err) {
-      logger.error('API请求失败，使用本地mock数据:', err);
-      const localDoc = mockDocuments.find((doc) => doc.id === id);
-      if (localDoc) {
-        setDocument(localDoc);
-      } else {
-        setError('文档不存在');
-      }
+      logger.error('Failed to load document:', err);
+      setError('文档不存在');
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadDocument();
+  }, [loadDocument]);
 
   const handleToggleFavorite = async () => {
     if (!isAuthenticated || !document) return;

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Send, Plus, Trash2, Monitor, Wifi, HardDrive, Printer, Cloud, Shield, FileText, Cpu, Save, BookOpen, ChevronRight, Image, XCircle } from 'lucide-react';
 import type { Case, CaseCategory, CaseTemplate } from '@/types';
 import DirectUpload from './DirectUpload';
+import { apiPost } from '@/scheduler';
 
 interface CaseSubmitProps {
   onClose: () => void;
@@ -498,18 +499,12 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
         }
       });
       
-      const response = await fetch('/api/cases', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: submitFormData,
-      });
+      const response = await apiPost('/cases', submitFormData, { skipContentType: true });
 
-      console.log('[案例提交] 响应状态:', response.status);
+      console.log('[案例提交] 响应:', response);
       
-      if (response.ok) {
-        const result = await response.json();
+      if (response.success) {
+        const result = response.data;
         console.log('[案例提交] 成功:', result);
         const submitData: Case = {
           ...result,
@@ -541,11 +536,12 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
         console.error('[案例提交] 失败:', response.status, errorText);
         alert(`提交失败: ${errorText}`);
       }
-    } catch (error: any) {
-      console.error('[案例提交] 异常:', error.name, error.message);
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+    } catch (error) {
+      const err = error as Error;
+      console.error('[案例提交] 异常:', err.name, err.message);
+      if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
         alert('网络连接失败，请检查后端服务是否正常运行');
-      } else if (error.name === 'AbortError') {
+      } else if (err.name === 'AbortError') {
         alert('请求超时，请重试');
       } else {
         alert(`提交失败: ${error.message || '未知错误'}`);

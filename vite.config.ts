@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from "vite-tsconfig-paths";
+import type { IncomingMessage } from 'http';
+import type { Proxy } from 'http-proxy';
+
+const API_TARGET = process.env.VITE_API_TARGET || 'http://127.0.0.1:5000';
 
 export default defineConfig({
   build: {
@@ -21,16 +25,17 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:5000',
+        target: API_TARGET,
         changeOrigin: true,
         secure: false,
         ws: true,
-        logLevel: 'debug',
-        onProxyReq: (proxyReq, req, res) => {
-          console.log('[Vite Proxy] 请求:', req.method, req.url);
-        },
-        onError: (err, req, res) => {
-          console.error('[Vite Proxy] 错误:', err);
+        configure: (proxy: Proxy) => {
+          proxy.on('proxyReq', (proxyReq: ReturnType<Proxy['on']>, req: IncomingMessage) => {
+            console.log('[Vite Proxy] 请求:', req.method, req.url);
+          });
+          proxy.on('error', (err: Error) => {
+            console.error('[Vite Proxy] 错误:', err);
+          });
         }
       },
     },

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FileText, MessageSquare, Check, X, Trash2, Search, AlertCircle } from 'lucide-react';
 import { reviewAPI } from '../services/api';
 import type { Post, Comment } from '../types';
@@ -14,11 +14,7 @@ export default function ReviewManagement() {
   const [rejectReason, setRejectReason] = useState('');
   const [selectedItem, setSelectedItem] = useState<{ id: string; type: 'post' | 'comment' } | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, [activeTab]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       if (activeTab === 'posts') {
@@ -33,7 +29,11 @@ export default function ReviewManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, statusFilter]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleApprove = async (id: string, type: 'post' | 'comment') => {
     try {

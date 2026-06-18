@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import type { DiagnosisResult, DiagnosisSolution, Symptom } from '@/types';
 import { aiAPI, type SmartQAResult } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
+import LoginRequiredToast from './LoginRequiredToast';
 
 interface ChatMessage {
   id: string;
@@ -23,6 +25,7 @@ interface AIDiagnosisAssistantProps {
 }
 
 export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }: AIDiagnosisAssistantProps) {
+  const { isAuthenticated } = useAuth();
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [customSymptom, setCustomSymptom] = useState('');
   const [deviceType, setDeviceType] = useState('');
@@ -31,6 +34,7 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showLoginToast, setShowLoginToast] = useState(false);
   
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -50,7 +54,12 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
   const loadSymptoms = async () => {
     try {
       const response = await aiAPI.getSymptoms({ limit: 15 });
-      setSymptoms(response.data.data.symptoms);
+      const data = response?.data?.data;
+      if (data && data.symptoms) {
+        setSymptoms(data.symptoms);
+      } else {
+        throw new Error('Invalid response structure');
+      }
     } catch (error) {
       console.error('Failed to load symptoms:', error);
       setSymptoms([
@@ -109,6 +118,10 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
   };
 
   const analyzeSymptoms = async () => {
+    if (!isAuthenticated) {
+      setShowLoginToast(true);
+      return;
+    }
     if (selectedSymptoms.length === 0 || loading) return;
 
     setIsAnalyzing(true);
@@ -132,6 +145,10 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
   };
 
   const sendMessage = async () => {
+    if (!isAuthenticated) {
+      setShowLoginToast(true);
+      return;
+    }
     if (!inputMessage.trim() || isThinking) return;
 
     const userMessage: ChatMessage = {
@@ -165,7 +182,7 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
 
       setChatMessages([...chatMessages, userMessage, aiMessage]);
       saveChatHistory([inputMessage, ...chatHistory]);
-    } catch (error) {
+    } catch {
       const errorMessage: ChatMessage = {
         id: `msg-${Date.now()}`,
         type: 'ai',
@@ -670,6 +687,11 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
           )}
         </div>
       )}
+
+      <LoginRequiredToast
+        show={showLoginToast}
+        onClose={() => setShowLoginToast(false)}
+      />
     </div>
   );
 }
