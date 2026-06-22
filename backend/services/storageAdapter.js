@@ -28,11 +28,21 @@ class StorageAdapter {
   async init() {
     console.log(`[存储适配器] 初始化${this.type === 'volcengine' ? '火山引擎' : '本地'}存储...`);
     if (this.type === 'volcengine') {
-      await this.storage.initBucket();
+      try {
+        await this.storage.initBucket();
+        console.log(`[存储适配器] ✅ 火山引擎存储初始化成功`);
+      } catch (error) {
+        console.warn(`[存储适配器] ⚠️ 火山引擎存储初始化失败: ${error.message}`);
+        console.warn(`[存储适配器] ⚠️ 回退到本地存储`);
+        this.type = 'local';
+        this.storage = getLocalStorageService();
+        await this.storage.init();
+        console.log(`[存储适配器] ✅ 本地存储初始化成功`);
+      }
     } else {
       await this.storage.init();
+      console.log(`[存储适配器] ✅ 本地存储初始化成功`);
     }
-    console.log(`[存储适配器] ✅ ${this.type === 'volcengine' ? '火山引擎' : '本地'}存储初始化成功`);
   }
 
   getType() {

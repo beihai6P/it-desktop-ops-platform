@@ -526,14 +526,8 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
           onClose();
         }, 100);
       } else {
-        let errorText = '';
-        try {
-          const error = await response.json();
-          errorText = error.errors?.[0]?.msg || error.message || '未知错误';
-        } catch {
-          errorText = await response.text();
-        }
-        console.error('[案例提交] 失败:', response.status, errorText);
+        const errorText = response.message || response.error || '提交失败';
+        console.error('[案例提交] 失败:', response.code, errorText);
         alert(`提交失败: ${errorText}`);
       }
     } catch (error) {

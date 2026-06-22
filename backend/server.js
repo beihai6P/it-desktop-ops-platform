@@ -25,6 +25,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const storageRoutes = require('./routes/storageRoutes');
 const presignedRoutes = require('./routes/presignedRoutes');
 const { seedData } = require('./utils/seedData');
+const { getStorageAdapter } = require('./services/storageAdapter');
 
 const app = express();
 
@@ -92,6 +93,9 @@ const startServer = async () => {
     
     await mongoose.connect(mongoUri);
     console.log('MongoDB Connected');
+    
+    const storageAdapter = getStorageAdapter();
+    await storageAdapter.init();
     
     await seedData();
     
