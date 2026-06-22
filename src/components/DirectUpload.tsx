@@ -389,3 +389,6 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
       )}
     </div>
   );
+};
+
+export default DirectUpload;
