@@ -1,4 +1,4 @@
-﻿import { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import {
   Upload as UploadIcon,
   CheckCircle,
@@ -21,6 +21,7 @@ interface FileItem {
   type: string;
   status: 'pending' | 'uploading' | 'done' | 'error' | 'duplicate';
   progress: number;
+  file?: File;
   fileId?: string;
   error?: string;
   existingFile?: {
@@ -69,6 +70,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
         type: file.type,
         status: 'pending',
         progress: 0,
+        file: file,
       });
     }
 
@@ -137,6 +139,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
         type: file.type,
         status: 'pending',
         progress: 0,
+        file: file,
       });
     }
 
@@ -151,22 +154,9 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
     const pendingItems = fileList.filter(item => item.status === 'pending' || item.status === 'error');
     
     for (const item of pendingItems) {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.style.display = 'none';
-      input.accept = item.type || '';
-      document.body.appendChild(input);
-      
-      input.onchange = async (e) => {
-        const target = e.target as HTMLInputElement;
-        const file = target.files?.[0];
-        if (file) {
-          await uploadFile(item, file);
-        }
-        document.body.removeChild(input);
-      };
-      
-      input.click();
+      if (item.file) {
+        await uploadFile(item, item.file);
+      }
     }
   };
 
@@ -174,21 +164,9 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
     const item = fileList.find(f => f.uid === uid);
     if (!item || item.status !== 'pending') return;
 
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.style.display = 'none';
-    document.body.appendChild(input);
-
-    input.onchange = async (e) => {
-      const target = e.target as HTMLInputElement;
-      const file = target.files?.[0];
-      if (file) {
-        await uploadFile(item, file);
-      }
-      document.body.removeChild(input);
-    };
-
-    input.click();
+    if (item.file) {
+      await uploadFile(item, item.file);
+    }
   };
 
   const handleRemove = (uid: string) => {
