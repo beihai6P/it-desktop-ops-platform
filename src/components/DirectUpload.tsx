@@ -19,11 +19,12 @@ interface FileItem {
   name: string;
   size: number;
   type: string;
-  status: 'pending' | 'uploading' | 'done' | 'error' | 'duplicate';
+  status: 'pending' | 'hashing' | 'checking' | 'uploading' | 'done' | 'error' | 'duplicate';
   progress: number;
   file?: File;
   fileId?: string;
   error?: string;
+  sha256?: string;
   existingFile?: {
     fileId: string;
     originalName: string;
@@ -78,49 +79,37 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
     event.target.value = '';
   };
 
-  const uploadFile = async (fileItem: FileItem, file: File) => {
-    try {
-      setFileList(prev => prev.map(item =>
-        item.uid === fileItem.uid ? { ...item, status: 'uploading', progress: 0 } : item
-      ));
+  const uploadFile = async (fileItem: FileItem) => {
+    if (!fileItem.file) return;
 
-      const result = await storageScheduler.uploadFile(
-        file,
-        category,
-        accessLevel,
-        (progress) => {
-          setFileList(prev => prev.map(item =>
-            item.uid === fileItem.uid ? { ...item, progress } : item
-          ));
-        }
-      );
+    setFileList(prev => prev.map(item =>
+      item.uid === fileItem.uid ? { ...item, status: 'uploading', progress: 0 } : item
+    ));
 
-      const resultData = result as unknown as Record<string, unknown>;
-
-      if (resultData.duplicate && resultData.existingFile) {
+    const result = await storageScheduler.uploadFile(
+      fileItem.file,
+      category,
+      accessLevel,
+      (progress) => {
         setFileList(prev => prev.map(item =>
-          item.uid === fileItem.uid ? {
-            ...item,
-            status: 'duplicate',
-            existingFile: resultData.existingFile as FileItem['existingFile']
-          } : item
+          item.uid === fileItem.uid ? { ...item, progress } : item
         ));
-        return;
       }
+    );
 
-      setFileList(prev => prev.map(item =>
-        item.uid === fileItem.uid ? { ...item, status: 'done', progress: 100, fileId: resultData.fileId as string } : item
-      ));
+    setFileList(prev => prev.map(item =>
+      item.uid === fileItem.uid ? {
+        ...item,
+        status: result.status,
+        progress: result.progress,
+        fileId: result.fileId,
+        error: result.error,
+        existingFile: result.existingFile,
+      } : item
+    ));
 
-      if (onUploadComplete) {
-        onUploadComplete(resultData.fileId as string, file.name, resultData.downloadUrl as string | undefined);
-      }
-
-    } catch (error) {
-      console.error('上传失败:', error);
-      setFileList(prev => prev.map(item =>
-        item.uid === fileItem.uid ? { ...item, status: 'error', error: (error as Error).message } : item
-      ));
+    if (result.status === 'done' && result.fileId && onUploadComplete) {
+      onUploadComplete(result.fileId, result.name);
     }
   };
 
@@ -154,19 +143,14 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
     const pendingItems = fileList.filter(item => item.status === 'pending' || item.status === 'error');
     
     for (const item of pendingItems) {
-      if (item.file) {
-        await uploadFile(item, item.file);
-      }
+      await uploadFile(item);
     }
   };
 
   const handleUploadSingle = async (uid: string) => {
     const item = fileList.find(f => f.uid === uid);
     if (!item || item.status !== 'pending') return;
-
-    if (item.file) {
-      await uploadFile(item, item.file);
-    }
+    await uploadFile(item);
   };
 
   const handleRemove = (uid: string) => {
@@ -203,7 +187,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
   };
 
   const pendingCount = fileList.filter(f => f.status === 'pending').length;
-  const uploadingCount = fileList.filter(f => f.status === 'uploading').length;
+  const uploadingCount = fileList.filter(f => f.status === 'uploading' || f.status === 'hashing' || f.status === 'checking').length;
 
   return (
     <div className="w-full">
@@ -258,7 +242,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
                     <AlertCircle className="w-6 h-6 text-red-500" />
                   ) : item.status === 'duplicate' ? (
                     <AlertTriangle className="w-6 h-6 text-yellow-500" />
-                  ) : item.status === 'uploading' ? (
+                  ) : item.status === 'uploading' || item.status === 'hashing' || item.status === 'checking' ? (
                     <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
                   ) : (
                     getFileIcon(item.type)
@@ -268,7 +252,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-gray-900 truncate">{item.name}</p>
                   <p className="text-sm text-gray-500">{getFileSizeText(item.size)}</p>
-                  {item.status === 'uploading' && (
+                  {(item.status === 'uploading' || item.status === 'hashing' || item.status === 'checking') && (
                     <div className="mt-2">
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
@@ -310,7 +294,7 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
                       </button>
                     </>
                   )}
-                  {item.status === 'uploading' && (
+                  {(item.status === 'uploading' || item.status === 'hashing' || item.status === 'checking') && (
                     <Clock className="w-5 h-5 text-blue-500" />
                   )}
                   {item.status === 'done' && (
@@ -405,6 +389,3 @@ const DirectUpload = ({ onUploadComplete, category = 'archive', accessLevel = 'p
       )}
     </div>
   );
-};
-
-export default DirectUpload;
