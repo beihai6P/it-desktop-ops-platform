@@ -141,11 +141,20 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
     if (saved) {
       try {
         const draft = JSON.parse(saved);
+        
+        const clearPreviewUrls = (images: Array<{ file?: File; preview: string; fileId?: string; fileName: string; url?: string }>) => {
+          return images.map(img => ({
+            ...img,
+            preview: '',
+            file: undefined,
+          }));
+        };
+        
         setFormData({
           ...draft,
-          troubleshootingImages: draft.troubleshootingImages || [],
-          solutionImages: draft.solutionImages || [],
-          causeAnalysisImages: draft.causeAnalysisImages || [],
+          troubleshootingImages: clearPreviewUrls(draft.troubleshootingImages || []),
+          solutionImages: clearPreviewUrls(draft.solutionImages || []),
+          causeAnalysisImages: clearPreviewUrls(draft.causeAnalysisImages || []),
         });
       } catch {
         console.error('Failed to load draft');
@@ -500,8 +509,6 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
       });
       
       const response = await apiUpload('/cases', submitFormData);
-
-      console.log('[案例提交] 响应:', response);
       
       if (response.success) {
         const result = response.data;

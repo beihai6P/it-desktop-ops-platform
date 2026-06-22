@@ -1,4 +1,4 @@
-﻿import type { RequestOptions, ApiResponse } from './types';
+import type { RequestOptions, ApiResponse } from './types';
 import { configManager, logger } from './config';
 
 class ApiScheduler {
