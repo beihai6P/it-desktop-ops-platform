@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Send, Plus, Trash2, Monitor, Wifi, HardDrive, Printer, Cloud, Shield, FileText, Cpu, Save, BookOpen, ChevronRight, Image, XCircle } from 'lucide-react';
 import type { Case, CaseCategory, CaseTemplate } from '@/types';
 import DirectUpload from './DirectUpload';
-import { apiPost } from '@/scheduler';
+import { apiUpload } from '@/scheduler';
 
 interface CaseSubmitProps {
   onClose: () => void;
@@ -499,7 +499,7 @@ export default function CaseSubmit({ onClose, onSubmit }: CaseSubmitProps) {
         }
       });
       
-      const response = await apiPost('/cases', submitFormData, { skipContentType: true });
+      const response = await apiUpload('/cases', submitFormData);
 
       console.log('[案例提交] 响应:', response);
       
