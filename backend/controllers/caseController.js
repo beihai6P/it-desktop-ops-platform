@@ -239,7 +239,7 @@ const createCase = async (req, res) => {
     }
 
     const caseItem = await Case.create(caseData);
-    res.status(201).json(caseItem);
+    res.status(201).json({ success: true, data: caseItem });
   } catch (error) {
     console.error('[案例创建] 错误:', error);
     res.status(500).json({ message: '服务器错误', error: error.message });
