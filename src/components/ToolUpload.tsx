@@ -26,6 +26,7 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
     compatibility: '',
   });
   const [storageFileId, setStorageFileId] = useState<string>('');
+  const [fileUploaded, setFileUploaded] = useState(false);
   const [screenshots, setScreenshots] = useState<ScreenshotItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -284,7 +285,7 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
                       onClick={() => removeScreenshot(index)}
                       className="absolute top-0 right-0 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
                     >
-                      <XIcon className="w-4 h-4" />
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
                 ))}

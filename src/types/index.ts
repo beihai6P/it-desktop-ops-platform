@@ -439,6 +439,7 @@ export interface Tool {
   comments: ToolComment[];
   isFeatured?: boolean;
   isVerified?: boolean;
+  isPinned?: boolean;
 }
 
 export interface NotificationSettings {

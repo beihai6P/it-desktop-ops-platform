@@ -29,8 +29,15 @@ const { seedData } = require('./utils/seedData');
 const app = express();
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',') 
-  : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://192.168.2.222:5173'];
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : [
+      'http://localhost:5173', 
+      'http://localhost:3000', 
+      'http://127.0.0.1:5173', 
+      'http://192.168.2.222:5173',
+      'http://localhost',
+      'https://your-domain.com'
+    ];
 
 app.use(cors({
   origin: function(origin, callback) {

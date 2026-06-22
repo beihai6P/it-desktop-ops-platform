@@ -30,7 +30,7 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
   const [diagnosisResult, setDiagnosisResult] = useState<{
     simpleSteps: string[];
     advancedSteps: string[];
-    matchedCases: { id: string; title: string; author: string; deviceType: string; score: number; matchedSymptoms: string[] }[];
+    matchedCases: { id: string; title: string; author: string; deviceType: string; views: number; score: number; matchedSymptoms: string[] }[];
   } | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const historyRef = useRef<HTMLDivElement>(null);
@@ -86,8 +86,7 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
     try {
       const symptoms = inputText.split('、').filter(s => s.trim());
       
-      const response = await caseAPI.search({
-        query: symptoms.join(' '),
+      const response = await caseAPI.getAll({
         limit: 5
       });
       
@@ -103,6 +102,7 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
           title: caseItem.title,
           author: caseItem.author,
           deviceType: caseItem.deviceType,
+          views: caseItem.views,
           score: Math.round(score), 
           matchedSymptoms: matched 
         };
@@ -275,15 +275,15 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
         <div className="flex flex-wrap gap-2">
           {commonSymptoms.map((item) => (
             <button
-              key={item.text}
-              onClick={() => handleSymptomClick(item.text)}
+              key={item}
+              onClick={() => handleSymptomClick(item)}
               className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
-                selectedSymptoms.includes(item.text)
+                selectedSymptoms.includes(item)
                   ? 'bg-primary text-white shadow-sm'
                   : 'bg-primary/10 text-primary hover:bg-primary/20'
               }`}
             >
-              {item.text}
+              {item}
             </button>
           ))}
         </div>
@@ -434,7 +434,7 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
                 <span className="text-sm text-text-muted">({diagnosisResult.matchedCases.length}个)</span>
               </div>
               <div className="space-y-3">
-                {diagnosisResult.matchedCases.map(({ id, title, author, deviceType, score, matchedSymptoms }) => (
+                {diagnosisResult.matchedCases.map(({ id, title, author, deviceType, views, score, matchedSymptoms }) => (
                   <div
                     key={id}
                     onClick={() => onCaseSelect?.(id)}
@@ -457,7 +457,7 @@ export default function DiagnosisAssistant({ onCaseSelect }: DiagnosisAssistantP
                       ))}
                     </div>
                     <div className="flex items-center justify-between text-xs text-text-muted">
-                      <span>{caseItem.views}人浏览</span>
+                      <span>{views}人浏览</span>
                       <ChevronRight className="w-4 h-4 text-primary" />
                     </div>
                   </div>

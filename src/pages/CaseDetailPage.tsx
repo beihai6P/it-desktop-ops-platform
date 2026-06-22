@@ -26,11 +26,26 @@ export default function CaseDetailPage() {
   const [showComments, setShowComments] = useState(false);
   const [copiedStep, setCopiedStep] = useState<number | null>(null);
 
+  const loadCase = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await caseAPI.getById(id);
+      setCurrentCase(response.data.case);
+    } catch (err) {
+      console.error('Failed to load case:', err);
+      setError('Failed to load case');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
   const loadComments = useCallback(async () => {
     if (!id) return;
     try {
-      const response = await caseAPI.getComments(id);
-      setComments(response.data.comments);
+      const response = await caseAPI.getById(id);
+      setComments(response.data.case?.comments || []);
     } catch (err) {
       console.error('Failed to load comments:', err);
     }
@@ -40,21 +55,6 @@ export default function CaseDetailPage() {
     loadCase();
     loadComments();
   }, [id, loadCase, loadComments]);
-
-  const loadCase = async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await caseAPI.getById(id);
-      setCurrentCase(response.data.case);
-    } catch (err) {
-      console.error('Failed to load case:', err);
-      setError('获取案例详情失败');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getStatusDisplay = (status: string) => {
     switch (status) {

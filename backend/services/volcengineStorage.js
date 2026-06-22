@@ -8,14 +8,12 @@ const { Readable } = require('stream');
 
 class VolcengineStorage {
   constructor(config = {}) {
-    // 火山引擎对象存储配置（从环境变量读取）
     this.accessKeyId = config.accessKeyId || process.env.VOLC_ACCESS_KEY_ID;
     this.secretAccessKey = config.secretAccessKey || process.env.VOLC_SECRET_ACCESS_KEY;
     this.region = config.region || process.env.VOLC_REGION || 'cn-beijing';
     this.endpoint = config.endpoint || process.env.VOLC_ENDPOINT || 'tos-cn-beijing.volces.com';
     this.bucket = config.bucket || process.env.VOLC_BUCKET;
 
-    // 验证配置
     if (!this.accessKeyId || !this.secretAccessKey || !this.bucket) {
       throw new Error('火山引擎对象存储配置不完整，请设置VOLC_ACCESS_KEY_ID、VOLC_SECRET_ACCESS_KEY和VOLC_BUCKET环境变量');
     }
@@ -33,12 +31,8 @@ class VolcengineStorage {
     console.log('Bucket:', this.bucket);
   }
 
-  /**
-   * 初始化存储桶
-   */
   async initBucket() {
     try {
-      // 尝试上传一个小文件来验证Bucket是否可用（headBucket有问题，但putObject正常）
       console.log(`检查存储桶 ${this.bucket}...`);
       const testKey = 'init-test-' + Date.now() + '.txt';
       try {
@@ -47,7 +41,6 @@ class VolcengineStorage {
           key: testKey,
           body: Buffer.from('test'),
         });
-        // 删除测试文件
         await this.client.deleteObject({
           bucket: this.bucket,
           key: testKey,
@@ -65,20 +58,10 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 获取对象的公共URL
-   * @param {string} key - 对象键
-   */
   getObjectUrl(key) {
     return `https://${this.bucket}.${this.endpoint}/${key}`;
   }
 
-  /**
-   * 上传文件
-   * @param {string} key - 对象键
-   * @param {Buffer|Stream|string} data - 文件数据
-   * @param {object} options - 上传选项
-   */
   async putObject(key, data, options = {}) {
     try {
       const params = {
@@ -113,13 +96,6 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 上传分片
-   * @param {string} key - 对象键
-   * @param {number} partNumber - 分片编号（1-based）
-   * @param {string} uploadId - 初始化返回的上传ID
-   * @param {Buffer|Stream} data - 分片数据
-   */
   async uploadPart(key, partNumber, uploadId, data) {
     try {
       const result = await this.client.uploadPart({
@@ -144,9 +120,6 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 初始化分片上传
-   */
   async initiateMultipartUpload(key, options = {}) {
     try {
       const result = await this.client.createMultipartUpload({
@@ -171,9 +144,6 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 合并分片
-   */
   async completeMultipartUpload(key, uploadId, parts) {
     try {
       const result = await this.client.completeMultipartUpload({
@@ -197,9 +167,6 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 取消分片上传
-   */
   async abortMultipartUpload(key, uploadId) {
     try {
       await this.client.abortMultipartUpload({
@@ -214,9 +181,6 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 获取文件流
-   */
   async getObjectStream(key, range = null) {
     try {
       const params = {
@@ -230,7 +194,6 @@ class VolcengineStorage {
 
       const result = await this.client.getObject(params);
       
-      // 根据SDK响应结构，数据在data中
       const { Readable } = require('stream');
       const stream = Readable.from([result.data]);
       
@@ -248,12 +211,8 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 获取文件信息
-   */
   async getObjectInfo(key) {
     try {
-      // 使用getObject获取文件信息（headObject可能有问题）
       const result = await this.client.getObject({
         bucket: this.bucket,
         key,
@@ -274,9 +233,6 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 删除文件
-   */
   async deleteObject(key) {
     try {
       await this.client.deleteObject({
@@ -291,9 +247,6 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 批量删除文件
-   */
   async deleteObjects(keys) {
     try {
       const result = await this.client.deleteMultiObjects({
@@ -307,16 +260,6 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 生成预签名URL
-   * @param {object} options - 选项
-   * @param {string} options.key - 对象键
-   * @param {string} options.operation - 操作类型: put, get, uploadPart
-   * @param {string} [options.contentType] - 内容类型（用于put操作）
-   * @param {number} [options.expiresIn] - 过期时间（秒）
-   * @param {string} [options.uploadId] - 分片上传ID（用于uploadPart）
-   * @param {number} [options.partNumber] - 分片编号（用于uploadPart）
-   */
   async getPresignedUrl(options) {
     try {
       const { key, operation, contentType, expiresIn = 3600, uploadId, partNumber } = options;
@@ -339,7 +282,6 @@ class VolcengineStorage {
           break;
         case 'uploadPart':
           method = 'PUT';
-          // 火山引擎TOS SDK要求 uploadId 和 partNumber 通过 query 参数传递
           params.query = {
             uploadId: String(uploadId),
             partNumber: String(partNumber),
@@ -355,7 +297,6 @@ class VolcengineStorage {
       
       console.log(`[存储] 调用 getPreSignedUrl - method: ${method}, params:`, JSON.stringify(params));
       
-      // 火山引擎TOS SDK生成预签名URL（同步函数，返回string）
       const url = this.client.getPreSignedUrl({
         method,
         ...params,
@@ -364,24 +305,18 @@ class VolcengineStorage {
       console.log(`[存储] 预签名URL生成成功 - ${url.substring(0, 150)}...`);
       console.log(`[存储] 完整URL:`, url);
       
-      // 分片上传：检查SDK是否正确生成了包含uploadId和partNumber的URL
-      // 如果SDK没有正确生成，说明参数名可能不对，需要检查SDK文档
       let finalUrl = url;
       if (operation === 'uploadPart' && uploadId && partNumber) {
-        // 检查URL是否已经包含这些参数
         const hasUploadId = url.includes('uploadId=') || url.includes('upload-id=') || url.includes('UploadId=');
         const hasPartNumber = url.includes('partNumber=') || url.includes('part-number=') || url.includes('PartNumber=');
         
         if (!hasUploadId || !hasPartNumber) {
           console.error(`[存储] ❌ SDK未正确生成包含uploadId和partNumber的预签名URL`);
           console.error(`[存储] ❌ hasUploadId: ${hasUploadId}, hasPartNumber: ${hasPartNumber}`);
-          // 由于SDK生成的URL不包含必要参数，我们需要使用后端代理方式
-          // 返回一个标记，让前端知道需要使用代理上传
           throw new Error('SDK生成的预签名URL不包含必要参数，请使用后端代理上传');
         }
       }
       
-      // 验证URL是否包含必要的参数
       if (operation === 'uploadPart') {
         if (!finalUrl.includes('uploadId=')) {
           console.error(`[存储] ❌ 分片上传URL缺少uploadId参数`);
@@ -398,9 +333,6 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 初始化分片上传
-   */
   async initMultipartUpload(key) {
     try {
       const result = await this.client.createMultipartUpload({
@@ -415,9 +347,6 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 完成分片上传
-   */
   async completeMultipartUpload(key, uploadId, parts) {
     try {
       console.log(`[存储] completeMultipartUpload - key: ${key}, uploadId: ${uploadId}, parts:`, JSON.stringify(parts));
@@ -446,9 +375,6 @@ class VolcengineStorage {
     }
   }
 
-  /**
-   * 取消分片上传
-   */
   async abortMultipartUpload(key, uploadId) {
     try {
       await this.client.abortMultipartUpload({
@@ -465,7 +391,6 @@ class VolcengineStorage {
   }
 }
 
-// 单例
 let instance = null;
 
 function getStorageService() {

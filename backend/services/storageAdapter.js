@@ -1,20 +1,38 @@
 /**
- * 统一存储适配器 - 强制使用火山引擎对象存储
+ * 统一存储适配器 - 支持火山引擎对象存储和本地存储
  */
 
-const { getStorageService } = require('./volcengineStorage');
+const { getStorageService: getVolcengineStorage } = require('./volcengineStorage');
+const { getLocalStorageService } = require('./localStorage');
 
 class StorageAdapter {
   constructor() {
-    this.type = 'volcengine';
-    this.volcengineStorage = getStorageService();
-    console.log('[存储适配器] 强制使用火山引擎对象存储');
+    this.type = process.env.STORAGE_TYPE || 'local';
+    
+    if (this.type === 'volcengine') {
+      try {
+        this.storage = getVolcengineStorage();
+        console.log('[存储适配器] 使用火山引擎对象存储');
+      } catch (error) {
+        console.warn(`[存储适配器] 火山引擎存储初始化失败: ${error.message}`);
+        console.warn('[存储适配器] 回退到本地存储');
+        this.type = 'local';
+        this.storage = getLocalStorageService();
+      }
+    } else {
+      this.storage = getLocalStorageService();
+      console.log('[存储适配器] 使用本地文件存储');
+    }
   }
 
   async init() {
-    console.log('[存储适配器] 初始化火山引擎对象存储...');
-    await this.volcengineStorage.initBucket();
-    console.log('[存储适配器] ✅ 火山引擎对象存储初始化成功');
+    console.log(`[存储适配器] 初始化${this.type === 'volcengine' ? '火山引擎' : '本地'}存储...`);
+    if (this.type === 'volcengine') {
+      await this.storage.initBucket();
+    } else {
+      await this.storage.init();
+    }
+    console.log(`[存储适配器] ✅ ${this.type === 'volcengine' ? '火山引擎' : '本地'}存储初始化成功`);
   }
 
   getType() {
@@ -22,39 +40,39 @@ class StorageAdapter {
   }
 
   async putObject(key, data, options = {}) {
-    return await this.volcengineStorage.putObject(key, data, options);
+    return await this.storage.putObject(key, data, options);
   }
 
   async initMultipartUpload(key, options = {}) {
-    return await this.volcengineStorage.initiateMultipartUpload(key, options);
+    return await this.storage.initiateMultipartUpload ? this.storage.initiateMultipartUpload(key, options) : this.storage.initMultipartUpload(key, options);
   }
 
   async uploadPart(key, partNumber, uploadId, data) {
-    return await this.volcengineStorage.uploadPart(key, partNumber, uploadId, data);
+    return await this.storage.uploadPart(key, partNumber, uploadId, data);
   }
 
   async completeMultipartUpload(key, uploadId, parts) {
-    return await this.volcengineStorage.completeMultipartUpload(key, uploadId, parts);
+    return await this.storage.completeMultipartUpload(key, uploadId, parts);
   }
 
   async abortMultipartUpload(key, uploadId) {
-    return await this.volcengineStorage.abortMultipartUpload(key, uploadId);
+    return await this.storage.abortMultipartUpload(key, uploadId);
   }
 
   async getObjectStream(key, range = null) {
-    return await this.volcengineStorage.getObjectStream(key, range);
+    return await this.storage.getObjectStream(key, range);
   }
 
   async getObjectInfo(key) {
-    return await this.volcengineStorage.getObjectInfo(key);
+    return await this.storage.getObjectInfo(key);
   }
 
   async deleteObject(key) {
-    return await this.volcengineStorage.deleteObject(key);
+    return await this.storage.deleteObject(key);
   }
 
   getObjectUrl(key, expiresIn = 3600) {
-    return this.volcengineStorage.getSignedUrl(key, expiresIn);
+    return this.storage.getObjectUrl ? this.storage.getObjectUrl(key, expiresIn) : this.storage.getSignedUrl(key, expiresIn);
   }
 
   /**
@@ -68,7 +86,7 @@ class StorageAdapter {
    * @param {number} [options.partNumber] - 分片编号（用于uploadPart）
    */
   async getPresignedUrl(options) {
-    return await this.volcengineStorage.getPresignedUrl(options);
+    return await this.storage.getPresignedUrl(options);
   }
 
   async objectExists(key) {
