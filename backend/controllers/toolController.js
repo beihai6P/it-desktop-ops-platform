@@ -159,7 +159,7 @@ const createTool = async (req, res) => {
     }
 
     const tool = await Tool.create(toolData);
-    res.status(201).json({ tool });
+    res.status(201).json({ success: true, data: tool });
   } catch (error) {
     console.error('[工具创建] 错误:', error);
     console.error('[工具创建] 错误堆栈:', error.stack);

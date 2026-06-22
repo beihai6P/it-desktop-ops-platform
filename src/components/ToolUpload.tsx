@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, Image } from 'lucide-react';
 import DirectUpload from './DirectUpload';
-import { apiPost } from '@/scheduler';
+import { apiUpload } from '@/scheduler';
 
 interface ToolUploadProps {
   onClose: () => void;
@@ -90,7 +90,7 @@ export default function ToolUpload({ onClose, onSubmit }: ToolUploadProps) {
         data.append('screenshots', screenshot.file);
       });
 
-      const response = await apiPost('/tools', data, { skipContentType: true });
+      const response = await apiUpload('/tools', data);
 
       if (!response.success) {
         const errorMessage = response.message || '创建工具失败';
