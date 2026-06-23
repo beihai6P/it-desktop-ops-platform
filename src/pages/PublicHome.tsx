@@ -470,7 +470,7 @@ export default function PublicHome() {
                 target="_blank"
                 className="flex items-center gap-1 hover:text-primary transition-colors"
               >
-                <img src="/beian-icon.png" alt="公安备案" className="w-4 h-4 object-contain" />
+                <img src="/images/beian-icon.png" alt="公安备案" className="w-4 h-4 object-contain" />
                 浙公网安备33028202001171号
               </a>
             </div>

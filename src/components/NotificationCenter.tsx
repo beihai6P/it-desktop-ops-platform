@@ -66,7 +66,7 @@ export default function NotificationCenter({ isOpen, onClose, unreadCount, onUnr
     setLoading(true);
     try {
       const response = await notificationAPI.getAll({ limit: 50 });
-      if (response.data.success) {
+      if (response.success && response.data && response.data.data) {
         const normalizedData = response.data.data.map((item: Notification) => ({
           ...item,
           id: item._id || item.id,

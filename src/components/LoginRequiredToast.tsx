@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { AlertCircle, X, UserPlus } from 'lucide-react';
+import { AlertCircle, X, UserPlus, LogIn } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface LoginRequiredToastProps {
   show: boolean;
@@ -9,6 +10,7 @@ interface LoginRequiredToastProps {
 
 export default function LoginRequiredToast({ show, onClose, message = '此操作需要先登录/注册账号' }: LoginRequiredToastProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (show) {
@@ -18,6 +20,16 @@ export default function LoginRequiredToast({ show, onClose, message = '此操作
       return () => clearTimeout(timer);
     }
   }, [show]);
+
+  const handleLogin = () => {
+    onClose();
+    navigate('/login');
+  };
+
+  const handleRegister = () => {
+    onClose();
+    navigate('/login');
+  };
 
   if (!isVisible && !show) return null;
 
@@ -47,23 +59,18 @@ export default function LoginRequiredToast({ show, onClose, message = '此操作
 
           <div className="mt-6 flex gap-3">
             <button
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-gray-100 text-theme-text rounded-xl hover:bg-gray-200 transition-colors font-medium"
+              onClick={handleLogin}
+              className="flex-1 px-4 py-3 bg-gray-100 text-theme-text rounded-xl hover:bg-gray-200 transition-colors font-medium flex items-center justify-center gap-2"
             >
-              稍后登录
+              <LogIn className="w-4 h-4" />
+              去登录
             </button>
             <button
-              onClick={() => {
-                onClose();
-                const loginModal = document.getElementById('login-modal-trigger');
-                if (loginModal) {
-                  loginModal.click();
-                }
-              }}
+              onClick={handleRegister}
               className="flex-1 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors font-medium flex items-center justify-center gap-2"
             >
               <UserPlus className="w-4 h-4" />
-              立即注册
+              去注册
             </button>
           </div>
         </div>

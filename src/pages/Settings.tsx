@@ -135,13 +135,13 @@ const Settings: React.FC = () => {
   };
 
   const tabs = [
-    { id: 'general', label: 'General', icon: SettingsIcon },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'data', label: 'Data Retention', icon: Database },
-    { id: 'integrations', label: 'Integrations', icon: Plug },
-    { id: 'ai', label: 'AI Settings', icon: Brain },
+    { id: 'general', label: '常规设置', icon: SettingsIcon },
+    { id: 'notifications', label: '通知设置', icon: Bell },
+    { id: 'security', label: '安全设置', icon: Shield },
+    { id: 'appearance', label: '外观设置', icon: Palette },
+    { id: 'data', label: '数据保留', icon: Database },
+    { id: 'integrations', label: '集成设置', icon: Plug },
+    { id: 'ai', label: 'AI设置', icon: Brain },
   ];
 
   const timezones = [
@@ -154,10 +154,10 @@ const Settings: React.FC = () => {
   ];
 
   const languages = [
-    { value: 'zh-CN', label: 'Chinese (Simplified)' },
-    { value: 'en-US', label: 'English (US)' },
-    { value: 'ja-JP', label: 'Japanese' },
-    { value: 'ko-KR', label: 'Korean' },
+    { value: 'zh-CN', label: '简体中文' },
+    { value: 'en-US', label: '英语 (美国)' },
+    { value: 'ja-JP', label: '日语' },
+    { value: 'ko-KR', label: '韩语' },
   ];
 
   const renderGeneralSettings = () => {
@@ -165,10 +165,10 @@ const Settings: React.FC = () => {
     return (
       <div className="space-y-8">
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">Organization Information</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">组织信息</h3>
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Organization Name</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">组织名称</label>
               <input
                 type="text"
                 value={settings.organizationName}
@@ -177,7 +177,7 @@ const Settings: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Timezone</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">时区</label>
               <select
                 value={settings.timezone}
                 onChange={(e) => handleInputChange('timezone', e.target.value)}
@@ -189,7 +189,7 @@ const Settings: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Language</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">语言</label>
               <select
                 value={settings.language}
                 onChange={(e) => handleInputChange('language', e.target.value)}
@@ -204,12 +204,12 @@ const Settings: React.FC = () => {
         </div>
 
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">Regional Settings</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">区域设置</h3>
           <div className="grid grid-cols-2 gap-6">
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Globe className="w-4 h-4 text-text-muted" />
-                <span className="text-sm font-medium text-text-muted">Auto Daylight Saving</span>
+                <span className="text-sm font-medium text-text-muted">自动夏令时</span>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -224,7 +224,7 @@ const Settings: React.FC = () => {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="w-4 h-4 text-text-muted" />
-                <span className="text-sm font-medium text-text-muted">Sidebar Collapsed</span>
+                <span className="text-sm font-medium text-text-muted">侧边栏收起</span>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -247,14 +247,14 @@ const Settings: React.FC = () => {
     return (
       <div className="space-y-8">
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">Notification Preferences</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">通知偏好</h3>
           <div className="space-y-4">
             {[
-              { key: 'emailNotifications', label: 'Email Notifications', desc: 'Receive notifications via email' },
-              { key: 'pushNotifications', label: 'Push Notifications', desc: 'Receive browser push notifications' },
-              { key: 'mentionNotifications', label: 'Mention Notifications', desc: 'Get notified when mentioned' },
-              { key: 'commentNotifications', label: 'Comment Notifications', desc: 'Get notified on comments' },
-              { key: 'systemAlertNotifications', label: 'System Alerts', desc: 'Receive critical system alerts' },
+              { key: 'emailNotifications', label: '邮件通知', desc: '通过邮件接收通知' },
+              { key: 'pushNotifications', label: '推送通知', desc: '接收浏览器推送通知' },
+              { key: 'mentionNotifications', label: '@提及通知', desc: '被@时收到通知' },
+              { key: 'commentNotifications', label: '评论通知', desc: '收到评论通知' },
+              { key: 'systemAlertNotifications', label: '系统告警', desc: '接收重要系统告警' },
             ].map(item => (
               <div key={item.key} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
                 <div>
@@ -276,11 +276,11 @@ const Settings: React.FC = () => {
         </div>
 
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">Digest Settings</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">摘要设置</h3>
           <div className="space-y-4">
             {[
-              { key: 'dailyDigest', label: 'Daily Digest', desc: 'Receive daily summary email' },
-              { key: 'weeklyDigest', label: 'Weekly Digest', desc: 'Receive weekly summary email' },
+              { key: 'dailyDigest', label: '每日摘要', desc: '接收每日摘要邮件' },
+              { key: 'weeklyDigest', label: '每周摘要', desc: '接收每周摘要邮件' },
             ].map(item => (
               <div key={item.key} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
                 <div>
@@ -309,12 +309,12 @@ const Settings: React.FC = () => {
     return (
       <div className="space-y-8">
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">Password Policy</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">密码策略</h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
               <div>
-                <div className="font-medium text-theme-text">Two-Factor Authentication</div>
-                <div className="text-sm text-text-muted">Require 2FA for all users</div>
+                <div className="font-medium text-theme-text">双因素认证</div>
+                <div className="text-sm text-text-muted">要求所有用户启用2FA</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -328,8 +328,8 @@ const Settings: React.FC = () => {
             </div>
             <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
               <div>
-                <div className="font-medium text-theme-text">Require Strong Passwords</div>
-                <div className="text-sm text-text-muted">Enforce password complexity requirements</div>
+                <div className="font-medium text-theme-text">要求强密码</div>
+                <div className="text-sm text-text-muted">强制密码复杂度要求</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -343,8 +343,8 @@ const Settings: React.FC = () => {
             </div>
             <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
               <div>
-                <div className="font-medium text-theme-text">Session Timeout Warning</div>
-                <div className="text-sm text-text-muted">Warn users before session expiration</div>
+                <div className="font-medium text-theme-text">会话超时警告</div>
+                <div className="text-sm text-text-muted">会话过期前警告用户</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -358,7 +358,7 @@ const Settings: React.FC = () => {
             </div>
           </div>
           <div className="mt-6 pt-6 border-t border-gray-200">
-            <label className="block text-sm font-medium text-text-muted mb-2">Password Expiration Days</label>
+            <label className="block text-sm font-medium text-text-muted mb-2">密码过期天数</label>
             <input
               type="number"
               min="7"
@@ -369,7 +369,7 @@ const Settings: React.FC = () => {
             />
           </div>
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <label className="block text-sm font-medium text-text-muted mb-2">Session Timeout (minutes)</label>
+            <label className="block text-sm font-medium text-text-muted mb-2">会话超时（分钟）</label>
             <input
               type="number"
               min="5"
@@ -380,7 +380,7 @@ const Settings: React.FC = () => {
             />
           </div>
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <label className="block text-sm font-medium text-text-muted mb-2">Max Login Attempts</label>
+            <label className="block text-sm font-medium text-text-muted mb-2">最大登录尝试次数</label>
             <input
               type="number"
               min="3"
@@ -400,7 +400,7 @@ const Settings: React.FC = () => {
     return (
       <div className="space-y-8">
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">Theme Settings</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">主题设置</h3>
           <div className="grid grid-cols-3 gap-4">
             {['light', 'dark', 'system'].map(theme => (
               <button
@@ -412,19 +412,19 @@ const Settings: React.FC = () => {
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className="text-capitalize font-medium text-theme-text">{theme}</div>
+                <div className="font-medium text-theme-text">{theme === 'light' ? '浅色' : theme === 'dark' ? '深色' : '系统'}</div>
               </button>
             ))}
           </div>
         </div>
 
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">Interface Settings</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">界面设置</h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
               <div>
-                <div className="font-medium text-theme-text">Animations</div>
-                <div className="text-sm text-text-muted">Enable interface animations</div>
+                <div className="font-medium text-theme-text">动画</div>
+                <div className="text-sm text-text-muted">启用界面动画</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -438,8 +438,8 @@ const Settings: React.FC = () => {
             </div>
             <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
               <div>
-                <div className="font-medium text-theme-text">Sidebar Collapsed</div>
-                <div className="text-sm text-text-muted">Collapse sidebar by default</div>
+                <div className="font-medium text-theme-text">侧边栏收起</div>
+                <div className="text-sm text-text-muted">默认收起侧边栏</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -455,10 +455,10 @@ const Settings: React.FC = () => {
         </div>
 
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">Customization</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">自定义设置</h3>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Accent Color</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">主题色</label>
               <div className="flex items-center gap-4">
                 <input
                   type="color"
@@ -475,15 +475,15 @@ const Settings: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Font Size</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">字体大小</label>
               <select
                 value={settings.appearance.fontSize}
                 onChange={(e) => handleInputChange('appearance.fontSize', e.target.value)}
                 className="w-48 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
               >
-                <option value="small">Small</option>
-                <option value="medium">Medium</option>
-                <option value="large">Large</option>
+                <option value="small">小</option>
+                <option value="medium">中</option>
+                <option value="large">大</option>
               </select>
             </div>
           </div>
@@ -497,10 +497,10 @@ const Settings: React.FC = () => {
     return (
       <div className="space-y-8">
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">Data Retention Policy</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">数据保留策略</h3>
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Log Retention Period (Days)</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">日志保留期限（天）</label>
               <input
                 type="number"
                 min="30"
@@ -509,10 +509,10 @@ const Settings: React.FC = () => {
                 onChange={(e) => handleInputChange('dataRetention.logRetentionDays', parseInt(e.target.value))}
                 className="w-48 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
               />
-              <p className="text-sm text-text-muted mt-2">Automatically delete logs older than the specified days</p>
+              <p className="text-sm text-text-muted mt-2">自动删除超过指定天数的日志</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Cleanup Interval (Days)</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">清理间隔（天）</label>
               <input
                 type="number"
                 min="1"
@@ -523,7 +523,7 @@ const Settings: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Max Storage (MB)</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">最大存储（MB）</label>
               <input
                 type="number"
                 min="100"
@@ -535,8 +535,8 @@ const Settings: React.FC = () => {
             </div>
             <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
               <div>
-                <div className="font-medium text-theme-text">Auto-cleanup</div>
-                <div className="text-sm text-text-muted">Automatically clean up old data</div>
+                <div className="font-medium text-theme-text">自动清理</div>
+                <div className="text-sm text-text-muted">自动清理旧数据</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -552,9 +552,9 @@ const Settings: React.FC = () => {
         </div>
 
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">Backup Settings</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">备份设置</h3>
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-2">Backup Frequency</label>
+            <label className="block text-sm font-medium text-text-muted mb-2">备份频率</label>
             <div className="grid grid-cols-3 gap-4">
               {(['daily', 'weekly', 'monthly'] as const).map(freq => (
                 <button
@@ -566,7 +566,9 @@ const Settings: React.FC = () => {
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <div className="text-capitalize font-medium text-theme-text">{freq}</div>
+                  <div className="font-medium text-theme-text">
+                    {freq === 'daily' ? '每天' : freq === 'weekly' ? '每周' : '每月'}
+                  </div>
                 </button>
               ))}
             </div>
@@ -581,12 +583,12 @@ const Settings: React.FC = () => {
     return (
       <div className="space-y-8">
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">Third-party Integrations</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">第三方集成</h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
               <div>
-                <div className="font-medium text-theme-text">Slack Integration</div>
-                <div className="text-sm text-text-muted">Connect with Slack workspace</div>
+                <div className="font-medium text-theme-text">Slack 集成</div>
+                <div className="text-sm text-text-muted">连接 Slack 工作区</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -600,8 +602,8 @@ const Settings: React.FC = () => {
             </div>
             <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
               <div>
-                <div className="font-medium text-theme-text">Email Integration</div>
-                <div className="text-sm text-text-muted">Connect email notifications</div>
+                <div className="font-medium text-theme-text">邮件集成</div>
+                <div className="text-sm text-text-muted">连接邮件通知</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -615,8 +617,8 @@ const Settings: React.FC = () => {
             </div>
             <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
               <div>
-                <div className="font-medium text-theme-text">Microsoft Teams Integration</div>
-                <div className="text-sm text-text-muted">Connect with Microsoft Teams</div>
+                <div className="font-medium text-theme-text">Microsoft Teams 集成</div>
+                <div className="text-sm text-text-muted">连接 Microsoft Teams</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -631,7 +633,7 @@ const Settings: React.FC = () => {
             <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
               <div>
                 <div className="font-medium text-theme-text">Webhooks</div>
-                <div className="text-sm text-text-muted">Enable outgoing webhooks</div>
+                <div className="text-sm text-text-muted">启用出站 Webhooks</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -647,7 +649,7 @@ const Settings: React.FC = () => {
         </div>
 
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">API Settings</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">API 设置</h3>
           <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
             <div>
               <div className="font-medium text-theme-text">API Access</div>
@@ -673,11 +675,11 @@ const Settings: React.FC = () => {
     return (
       <div className="space-y-8">
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">AI Service Status</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">AI 服务状态</h3>
           <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-lg">
             <div>
-              <div className="font-medium text-theme-text">AI Service Enabled</div>
-              <div className="text-sm text-text-muted">Enable AI-powered features</div>
+              <div className="font-medium text-theme-text">启用 AI 服务</div>
+                <div className="text-sm text-text-muted">启用 AI 驱动功能</div>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -692,12 +694,12 @@ const Settings: React.FC = () => {
         </div>
 
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">AI Provider</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">AI 提供商</h3>
           <div className="grid grid-cols-3 gap-4">
             {[
-              { value: 'doubao', label: 'Doubao', desc: 'ByteDance Doubao API' },
+              { value: 'doubao', label: '豆包', desc: '字节跳动豆包 API' },
               { value: 'openai', label: 'OpenAI', desc: 'OpenAI GPT API' },
-              { value: 'custom', label: 'Custom', desc: 'Custom API endpoint' },
+              { value: 'custom', label: '自定义', desc: '自定义 API 端点' },
             ].map(provider => (
               <button
                 key={provider.value}
@@ -716,23 +718,23 @@ const Settings: React.FC = () => {
         </div>
 
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">API Configuration</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">API 配置</h3>
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">API Key</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">API 密钥</label>
               <input
                 type="password"
                 value={settings.aiSettings?.apiKey ?? ''}
                 onChange={(e) => handleInputChange('aiSettings.apiKey', e.target.value)}
-                placeholder="Enter your API key"
+                placeholder="输入您的 API 密钥"
                 className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
               />
               <p className="text-sm text-text-muted mt-2">
-                Your API key is stored securely and never exposed to the client.
+                您的 API 密钥已安全存储，绝不会暴露给客户端。
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">API URL</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">API 地址</label>
               <input
                 type="text"
                 value={settings.aiSettings?.apiUrl ?? 'https://ark.cn-beijing.volces.com/api/text/text'}
@@ -742,12 +744,12 @@ const Settings: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Model Name</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">模型名称</label>
               <input
                 type="text"
                 value={settings.aiSettings?.model ?? 'doubao-pro'}
                 onChange={(e) => handleInputChange('aiSettings.model', e.target.value)}
-                placeholder="Model name"
+                placeholder="模型名称"
                 className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
               />
             </div>
@@ -755,10 +757,10 @@ const Settings: React.FC = () => {
         </div>
 
         <div className="bg-white/85 border border-primary/20 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-theme-text mb-6">AI Parameters</h3>
+          <h3 className="text-lg font-semibold text-theme-text mb-6">AI 参数</h3>
           <div className="grid grid-cols-3 gap-6">
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Max Tokens</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">最大 Token 数</label>
               <input
                 type="number"
                 min="256"
@@ -767,10 +769,10 @@ const Settings: React.FC = () => {
                 onChange={(e) => handleInputChange('aiSettings.maxTokens', parseInt(e.target.value))}
                 className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
               />
-              <p className="text-xs text-text-muted mt-2">Maximum tokens per response</p>
+              <p className="text-xs text-text-muted mt-2">每个响应的最大 Token 数</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Temperature</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">温度参数</label>
               <input
                 type="number"
                 min="0"
@@ -780,10 +782,10 @@ const Settings: React.FC = () => {
                 onChange={(e) => handleInputChange('aiSettings.temperature', parseFloat(e.target.value))}
                 className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
               />
-              <p className="text-xs text-text-muted mt-2">0 = deterministic, 2 = creative</p>
+              <p className="text-xs text-text-muted mt-2">0 = 确定性，2 = 创造性</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Timeout (ms)</label>
+              <label className="block text-sm font-medium text-text-muted mb-2">超时时间（毫秒）</label>
               <input
                 type="number"
                 min="5000"
@@ -792,7 +794,7 @@ const Settings: React.FC = () => {
                 onChange={(e) => handleInputChange('aiSettings.timeout', parseInt(e.target.value))}
                 className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
               />
-              <p className="text-xs text-text-muted mt-2">Request timeout in milliseconds</p>
+              <p className="text-xs text-text-muted mt-2">请求超时时间（毫秒）</p>
             </div>
           </div>
         </div>
@@ -816,9 +818,9 @@ const Settings: React.FC = () => {
             <SettingsIcon className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-theme-text">System Settings</h1>
-            <p className="text-text-muted">Configure global settings for your organization</p>
-          </div>
+              <h1 className="text-2xl font-bold text-theme-text">系统设置</h1>
+              <p className="text-text-muted">配置组织的全局设置</p>
+            </div>
         </div>
 
         <div className="flex gap-6">
@@ -856,7 +858,7 @@ const Settings: React.FC = () => {
                     className="flex items-center gap-2 px-4 py-2 text-text-muted hover:text-theme-text hover:bg-gray-100 rounded-lg transition-all"
                   >
                     <RotateCcw className="w-4 h-4" />
-                    <span>Reset</span>
+                    <span>重置</span>
                   </button>
                   <button
                     onClick={handleSave}
@@ -865,12 +867,12 @@ const Settings: React.FC = () => {
                     {saved ? (
                       <>
                         <CheckCircle2 className="w-4 h-4" />
-                        <span>Saved</span>
+                        <span>已保存</span>
                       </>
                     ) : (
                       <>
                         <Save className="w-4 h-4" />
-                        <span>Save Changes</span>
+                        <span>保存更改</span>
                       </>
                     )}
                   </button>
@@ -896,23 +898,23 @@ const Settings: React.FC = () => {
               <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
                 <AlertCircle className="w-5 h-5 text-amber-600" />
               </div>
-              <h3 className="text-lg font-semibold text-theme-text">Confirm Reset</h3>
+              <h3 className="text-lg font-semibold text-theme-text">确认重置</h3>
             </div>
             <p className="text-text-muted mb-6">
-              Are you sure you want to reset all settings to their default values? This action cannot be undone.
+              确定要将所有设置重置为默认值吗？此操作无法撤销。
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowResetConfirm(false)}
                 className="px-4 py-2 text-text-muted hover:text-theme-text hover:bg-gray-100 rounded-lg transition-all"
               >
-                Cancel
+                取消
               </button>
               <button
                 onClick={handleReset}
                 className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-all"
               >
-                Reset Settings
+                重置设置
               </button>
             </div>
           </div>

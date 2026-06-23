@@ -1,4 +1,4 @@
-﻿import { apiGet, apiPost, apiPut, apiDelete } from '@/scheduler';
+import { apiGet, apiPost, apiPut, apiDelete } from '@/scheduler';
 import { logger } from '@/scheduler';
 
 interface UpdateProfileData {
@@ -78,16 +78,18 @@ export const ticketAPI = {
 import type { Post } from '@/types';
 
 export const postAPI = {
-  getAll: (params?: { category?: string; status?: string; authorId?: string; page?: number; limit?: number }) =>
+  getAll: (params?: { category?: string; status?: string; authorId?: string; page?: number; limit?: number; search?: string; searchType?: string }) =>
     apiGet('/posts', params),
   getById: (id: string) => apiGet(`/posts/${id}`),
-  create: (data: Omit<Post, 'id' | 'likes' | 'comments' | 'createdAt' | 'views' | 'author' | 'authorId' | 'reviewStatus' | 'reviewReason' | 'status'>) => apiPost('/posts', data),
+  create: (data: Omit<Post, 'id' | 'likes' | 'comments' | 'createdAt' | 'views' | 'author' | 'authorId' | 'reviewStatus' | 'reviewReason' | 'status' | 'isEssence' | 'isPinned'>) => apiPost('/posts', data),
   update: (id: string, data: Partial<Post>) => apiPut(`/posts/${id}`, data),
   delete: (id: string) => apiDelete(`/posts/${id}`),
   like: (id: string) => apiPost(`/posts/${id}/like`),
   bookmark: (id: string) => apiPost(`/posts/${id}/bookmark`),
   getHot: () => apiGet('/posts/hot'),
   getStats: () => apiGet('/posts/stats'),
+  toggleEssence: (id: string) => apiPost(`/posts/${id}/essence`),
+  togglePin: (id: string) => apiPost(`/posts/${id}/pin`),
 };
 
 export const reviewAPI = {
@@ -227,12 +229,12 @@ export const roleAPI = {
   createRole: (data: { name: string; code: string; description?: string; level?: number; permissions?: string[] }) => apiPost('/roles', data),
   updateRole: (id: string, data: { name?: string; description?: string; permissions?: string[]; isActive?: boolean }) => apiPut(`/roles/${id}`, data),
   deleteRole: (id: string) => apiDelete(`/roles/${id}`),
-  getPermissions: () => apiGet('/permissions'),
-  getPermissionById: (id: string) => apiGet(`/permissions/${id}`),
-  createPermission: (data: { name: string; code: string; description?: string; category?: string }) => apiPost('/permissions', data),
-  updatePermission: (id: string, data: { name?: string; code?: string; description?: string; category?: string }) => apiPut(`/permissions/${id}`, data),
-  deletePermission: (id: string) => apiDelete(`/permissions/${id}`),
-  initDefaults: () => apiPost('/roles/init-defaults'),
+  getPermissions: () => apiGet('/roles/permissions'),
+  getPermissionById: (id: string) => apiGet(`/roles/permissions/${id}`),
+  createPermission: (data: { name: string; code: string; description?: string; category?: string }) => apiPost('/roles/permissions', data),
+  updatePermission: (id: string, data: { name?: string; code?: string; description?: string; category?: string }) => apiPut(`/roles/permissions/${id}`, data),
+  deletePermission: (id: string) => apiDelete(`/roles/permissions/${id}`),
+  initDefaults: () => apiPost('/roles/init'),
 };
 
 import type { DiagnosisRequest } from '@/types';

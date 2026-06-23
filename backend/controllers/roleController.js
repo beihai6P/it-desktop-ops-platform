@@ -414,19 +414,17 @@ exports.initDefaultRolesAndPermissions = async (req, res) => {
       { name: '导出报表', code: 'REPORT_EXPORT', description: '导出报表数据', category: 'report' },
     ];
     
-    // 创建权限
-    const createdPermissions = await Permission.insertMany(
-      defaultPermissions.map(p => ({
-        ...p,
-        code: p.code
-      }))
-    );
-    
-    // 创建权限映射
-    const permissionMap = createdPermissions.reduce((acc, perm) => {
-      acc[perm.code] = perm._id;
-      return acc;
-    }, {});
+    // 创建或更新权限（避免重复）
+    const permissionMap = {};
+    for (const perm of defaultPermissions) {
+      const existing = await Permission.findOne({ code: perm.code });
+      if (existing) {
+        permissionMap[perm.code] = existing._id;
+      } else {
+        const created = await Permission.create(perm);
+        permissionMap[perm.code] = created._id;
+      }
+    }
     
     // 定义默认角色
     const defaultRoles = [
@@ -471,14 +469,26 @@ exports.initDefaultRolesAndPermissions = async (req, res) => {
       }
     ];
     
-    // 创建角色
-    const createdRoles = await Role.insertMany(defaultRoles);
+    // 创建或更新角色（避免重复）
+    const createdRoles = [];
+    for (const role of defaultRoles) {
+      const existing = await Role.findOne({ code: role.code });
+      if (existing) {
+        await Role.findByIdAndUpdate(existing._id, {
+          permissions: role.permissions
+        });
+        createdRoles.push(existing);
+      } else {
+        const created = await Role.create(role);
+        createdRoles.push(created);
+      }
+    }
     
     res.status(201).json({
       success: true,
       message: '默认权限和角色初始化成功',
       data: {
-        permissions: createdPermissions.length,
+        permissions: Object.keys(permissionMap).length,
         roles: createdRoles.length
       }
     });

@@ -35,8 +35,8 @@ const defaultConfig: SchedulerConfig = {
     },
   },
   logging: {
-    enabled: import.meta.env.VITE_LOGGING_ENABLED === 'true' || true,
-    level: (import.meta.env.VITE_LOG_LEVEL as LogLevel) || 'info',
+    enabled: import.meta.env.VITE_LOGGING_ENABLED === 'true' || false,
+    level: (import.meta.env.VITE_LOG_LEVEL as LogLevel) || 'warn',
   },
 };
 

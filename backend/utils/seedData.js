@@ -82,61 +82,48 @@ const defaultRoles = [
 ];
 
 const defaultFaultTypes = [
-  { name: '系统崩溃', category: '系统', description: '操作系统突然崩溃或死机' },
-  { name: '蓝屏错误', category: '系统', description: 'Windows系统蓝屏错误' },
-  { name: '启动失败', category: '系统', description: '电脑无法正常启动' },
-  { name: '病毒感染', category: '安全', description: '电脑感染病毒或恶意软件' },
-  { name: '网络连接', category: '网络', description: '网络连接问题' },
-  { name: '驱动问题', category: '硬件', description: '设备驱动程序问题' },
-  { name: '硬件故障', category: '硬件', description: '硬件设备故障' },
-  { name: '软件冲突', category: '软件', description: '软件之间冲突' },
-  { name: '文件损坏', category: '文件', description: '系统文件或数据文件损坏' },
-  { name: '性能问题', category: '性能', description: '电脑运行缓慢或卡顿' },
+  { name: '系统崩溃', category: 'system', description: '操作系统突然崩溃或死机', difficulty: 'hard' },
+  { name: '蓝屏错误', category: 'system', description: 'Windows系统蓝屏错误', difficulty: 'medium' },
+  { name: '启动失败', category: 'system', description: '电脑无法正常启动', difficulty: 'medium' },
+  { name: '病毒感染', category: 'software', description: '电脑感染病毒或恶意软件', difficulty: 'hard' },
+  { name: '网络连接', category: 'network', description: '网络连接问题', difficulty: 'easy' },
+  { name: '驱动问题', category: 'hardware', description: '设备驱动程序问题', difficulty: 'medium' },
+  { name: '硬件故障', category: 'hardware', description: '硬件设备故障', difficulty: 'hard' },
+  { name: '软件冲突', category: 'software', description: '软件之间冲突', difficulty: 'medium' },
+  { name: '文件损坏', category: 'software', description: '系统文件或数据文件损坏', difficulty: 'easy' },
+  { name: '性能问题', category: 'system', description: '电脑运行缓慢或卡顿', difficulty: 'medium' },
 ];
 
 async function seedData() {
   try {
-    console.log('[数据初始化] 开始初始化系统数据...');
-    
     const permissionCount = await Permission.countDocuments();
     if (permissionCount === 0) {
-      console.log('[数据初始化] 初始化权限数据...');
       await Permission.insertMany(defaultPermissions);
-      console.log('[数据初始化] ✅ 权限数据初始化完成');
     }
     
     const roleCount = await Role.countDocuments();
     if (roleCount === 0) {
-      console.log('[数据初始化] 初始化角色数据...');
       await Role.insertMany(defaultRoles);
-      console.log('[数据初始化] ✅ 角色数据初始化完成');
     }
     
     const faultTypeCount = await FaultType.countDocuments();
     if (faultTypeCount === 0) {
-      console.log('[数据初始化] 初始化故障类型数据...');
       await FaultType.insertMany(defaultFaultTypes);
-      console.log('[数据初始化] ✅ 故障类型数据初始化完成');
     }
     
     const adminCount = await User.countDocuments({ role: 'admin' });
     if (adminCount === 0) {
-      console.log('[数据初始化] 创建默认管理员账户...');
-      const adminUser = await User.create({
+      await User.create({
         name: '系统管理员',
         email: 'admin@example.com',
         password: 'admin123',
         role: 'admin',
         isAdmin: true
       });
-      console.log('[数据初始化] ✅ 默认管理员账户创建完成:', adminUser.email);
     }
     
-    console.log('[数据初始化] ✅ 所有数据初始化完成');
-    
   } catch (error) {
-    console.error('[数据初始化] 初始化失败:', error.message);
-    console.log('[数据初始化] 继续启动服务器...');
+    console.error('数据初始化失败:', error.message);
   }
 }
 

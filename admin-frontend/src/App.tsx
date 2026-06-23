@@ -2,11 +2,16 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import TicketManagement from './pages/TicketManagement'
+import DocumentManagement from './pages/DocumentManagement'
+import ToolManagement from './pages/ToolManagement'
+import CaseManagement from './pages/CaseManagement'
 import UserManagement from './pages/UserManagement'
 import RoleManagement from './pages/RoleManagement'
 import ReviewManagement from './pages/ReviewManagement'
 import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
+import AdminLayout from './components/AdminLayout'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading: loading } = useAuth()
@@ -20,14 +25,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
   
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />
-}
-
-function AdminLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {children}
-    </div>
-  )
 }
 
 function AppContent() {
@@ -45,6 +42,34 @@ function AppContent() {
         <ProtectedRoute>
           <AdminLayout>
             <Dashboard />
+          </AdminLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/tickets" element={
+        <ProtectedRoute>
+          <AdminLayout>
+            <TicketManagement />
+          </AdminLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/documents" element={
+        <ProtectedRoute>
+          <AdminLayout>
+            <DocumentManagement />
+          </AdminLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/tools" element={
+        <ProtectedRoute>
+          <AdminLayout>
+            <ToolManagement />
+          </AdminLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/cases" element={
+        <ProtectedRoute>
+          <AdminLayout>
+            <CaseManagement />
           </AdminLayout>
         </ProtectedRoute>
       } />

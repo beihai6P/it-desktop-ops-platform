@@ -129,8 +129,8 @@ export default function Profile() {
     setLoading(true);
     setError(null);
     try {
+      await loadContent();
       await Promise.all([
-        loadContent(),
         loadStats(),
         loadActivities(),
       ]);
@@ -380,35 +380,37 @@ export default function Profile() {
 
   interface ContentItem {
     id: string;
+    type: 'post' | 'ticket' | 'tool' | 'document';
     title?: string;
     name?: string;
     createdAt?: string;
     likes?: number;
     views?: number;
     status?: string;
+    stars?: number;
   }
 
   const filteredContent = (): ContentItem[] => {
     let items: ContentItem[] = [];
     switch (contentFilter) {
       case 'posts':
-        items = posts.map(p => ({ ...p, title: p.title }));
+        items = posts.map(p => ({ ...p, title: p.title, type: 'post' as const }));
         break;
       case 'tickets':
-        items = tickets.map(t => ({ ...t, title: t.title }));
+        items = tickets.map(t => ({ ...t, title: t.title, type: 'ticket' as const }));
         break;
       case 'tools':
-        items = tools.map(t => ({ ...t, name: t.name }));
+        items = tools.map(t => ({ ...t, name: t.name, type: 'tool' as const }));
         break;
       case 'documents':
-        items = documents.map(d => ({ ...d, title: d.title }));
+        items = documents.map(d => ({ ...d, title: d.title, type: 'document' as const }));
         break;
       default:
         items = [
-          ...posts.map(p => ({ ...p, title: p.title })),
-          ...tickets.map(t => ({ ...t, title: t.title })),
-          ...tools.map(t => ({ ...t, name: t.name })),
-          ...documents.map(d => ({ ...d, title: d.title })),
+          ...posts.map(p => ({ ...p, title: p.title, type: 'post' as const })),
+          ...tickets.map(t => ({ ...t, title: t.title, type: 'ticket' as const })),
+          ...tools.map(t => ({ ...t, name: t.name, type: 'tool' as const })),
+          ...documents.map(d => ({ ...d, title: d.title, type: 'document' as const })),
         ];
     }
 
@@ -418,7 +420,28 @@ export default function Profile() {
       );
     }
 
-    return items;
+    return items.sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+  };
+
+  const handleContentClick = (item: ContentItem) => {
+    switch (item.type) {
+      case 'post':
+        navigate(`/community/post/${item.id}`);
+        break;
+      case 'ticket':
+        navigate(`/tickets/${item.id}`);
+        break;
+      case 'tool':
+        navigate(`/tools/detail/${item.id}`);
+        break;
+      case 'document':
+        navigate(`/knowledge/document/${item.id}`);
+        break;
+    }
   };
 
   const tabs = [
@@ -806,54 +829,105 @@ export default function Profile() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {filteredContent().map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-4 p-4 bg-gray-50/50 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
-                      >
-                        <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                          {item.title ? (
-                            <MessageSquare className="w-5 h-5 text-primary" />
-                          ) : item.name ? (
-                            <Wrench className="w-5 h-5 text-primary" />
-                          ) : (
-                            <FileText className="w-5 h-5 text-primary" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-theme-text truncate">{item.title || item.name}</p>
-                          <p className="text-sm text-text-muted">
-                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString('zh-CN') : '-'}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm text-text-muted">
-                          {item.likes !== undefined && (
-                            <span className="flex items-center gap-1">
-                              <TrendingUp className="w-4 h-4" />
-                              {item.likes}
-                            </span>
-                          )}
-                          {item.views !== undefined && (
-                            <span className="flex items-center gap-1">
-                              <Eye className="w-4 h-4" />
-                              {item.views}
-                            </span>
-                          )}
-                          {item.status && (
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              item.status === 'open' ? 'bg-blue-100 text-blue-700' :
-                              item.status === 'in_progress' ? 'bg-yellow-100 text-yellow-700' :
-                              item.status === 'resolved' ? 'bg-green-100 text-green-700' :
-                              item.status === 'hot' ? 'bg-red-100 text-red-700' :
-                              'bg-gray-100 text-gray-600'
-                            }`}>
-                              {item.status}
-                            </span>
-                          )}
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-text-muted" />
-                      </div>
-                    ))}
+                    {filteredContent().map((item) => {
+                        const getIcon = () => {
+                          switch (item.type) {
+                            case 'post':
+                              return <MessageSquare className="w-5 h-5 text-primary" />;
+                            case 'ticket':
+                              return <FileText className="w-5 h-5 text-green-500" />;
+                            case 'tool':
+                              return <Wrench className="w-5 h-5 text-purple-500" />;
+                            case 'document':
+                              return <BookOpen className="w-5 h-5 text-orange-500" />;
+                            default:
+                              return <FileText className="w-5 h-5 text-primary" />;
+                          }
+                        };
+
+                        const getTypeLabel = () => {
+                          switch (item.type) {
+                            case 'post':
+                              return '帖子';
+                            case 'ticket':
+                              return '工单';
+                            case 'tool':
+                              return '工具';
+                            case 'document':
+                              return '文档';
+                            default:
+                              return '';
+                          }
+                        };
+
+                        const getTypeColor = () => {
+                          switch (item.type) {
+                            case 'post':
+                              return 'bg-blue-100 text-blue-700';
+                            case 'ticket':
+                              return 'bg-green-100 text-green-700';
+                            case 'tool':
+                              return 'bg-purple-100 text-purple-700';
+                            case 'document':
+                              return 'bg-orange-100 text-orange-700';
+                            default:
+                              return 'bg-gray-100 text-gray-600';
+                          }
+                        };
+
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => handleContentClick(item)}
+                            className="flex items-center gap-4 p-4 bg-gray-50/50 rounded-xl hover:bg-gray-50 transition-all cursor-pointer hover:shadow-md"
+                          >
+                            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                              {getIcon()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`px-2 py-0.5 rounded-full text-xs ${getTypeColor()}`}>
+                                  {getTypeLabel()}
+                                </span>
+                                <p className="font-medium text-theme-text truncate">{item.title || item.name}</p>
+                              </div>
+                              <p className="text-sm text-text-muted">
+                                {item.createdAt ? new Date(item.createdAt).toLocaleString('zh-CN') : '-'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-text-muted">
+                              {(item.likes !== undefined || item.stars !== undefined) && (
+                                <span className="flex items-center gap-1">
+                                  <TrendingUp className="w-4 h-4" />
+                                  {item.likes || item.stars || 0}
+                                </span>
+                              )}
+                              {item.views !== undefined && (
+                                <span className="flex items-center gap-1">
+                                  <Eye className="w-4 h-4" />
+                                  {item.views}
+                                </span>
+                              )}
+                              {item.status && (
+                                <span className={`px-2 py-1 rounded-full text-xs ${
+                                  item.status === 'open' ? 'bg-blue-100 text-blue-700' :
+                                  item.status === 'in_progress' ? 'bg-yellow-100 text-yellow-700' :
+                                  item.status === 'resolved' ? 'bg-green-100 text-green-700' :
+                                  item.status === 'hot' ? 'bg-red-100 text-red-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {item.status === 'open' ? '待处理' :
+                                   item.status === 'in_progress' ? '处理中' :
+                                   item.status === 'resolved' ? '已解决' :
+                                   item.status === 'hot' ? '热门' :
+                                   item.status}
+                                </span>
+                              )}
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-text-muted" />
+                          </div>
+                        );
+                      })}
                   </div>
                 )}
               </div>

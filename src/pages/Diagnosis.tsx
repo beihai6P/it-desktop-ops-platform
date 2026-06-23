@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type { Case, CaseCategory, SortRule, QualityFilter, CaseStats } from '@/types';
 import CaseSubmit from '@/components/CaseSubmit';
+import Modal from '@/components/Modal';
 import LoginRequiredToast from '@/components/LoginRequiredToast';
 import AIDiagnosisAssistant from '@/components/AIDiagnosisAssistant';
 import { useAuth } from '@/contexts/AuthContext';
@@ -215,12 +216,8 @@ export default function Diagnosis() {
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowAIAssistant(!showAIAssistant)}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
-                  showAIAssistant
-                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                    : 'bg-white text-primary border border-primary/20 hover:bg-primary/5'
-                }`}
+                onClick={() => setShowAIAssistant(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-white text-primary border border-primary/20 hover:bg-primary/5 rounded-xl font-medium transition-all"
               >
                 <Sparkles className="w-5 h-5" />
                 AI智能诊断
@@ -260,24 +257,8 @@ export default function Diagnosis() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="flex flex-col lg:flex-row gap-6">
-          {showAIAssistant && (
-            <div className="lg:w-96 flex-shrink-0">
-              <div className="sticky top-6">
-                <AIDiagnosisAssistant
-                  onCaseSelect={(caseId) => {
-                    const foundCase = cases.find(c => c.id === caseId);
-                    if (foundCase) {
-                      // Navigate to case detail page
-                      navigate(`/cases/${caseId}`);
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
           <div className="flex-1">
-            {!showAIAssistant && stats && (
+            {stats && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-white rounded-xl border border-primary/10 p-4">
                   <div className="flex items-center justify-between">
@@ -401,10 +382,20 @@ export default function Diagnosis() {
                       <Cpu className="w-12 h-12 mx-auto mb-4 opacity-50" />
                       <p>未找到匹配的故障记录</p>
                       <button
-                        onClick={() => setShowSubmitModal(true)}
-                        className="mt-4 px-4 py-2 bg-primary text-white rounded-xl text-sm hover:bg-primary-dark transition-colors"
+                        onClick={() => {
+                          if (isAuthenticated) {
+                            setShowSubmitModal(true);
+                          } else {
+                            setShowLoginToast(true);
+                          }
+                        }}
+                        className={`mt-4 px-4 py-2 rounded-xl text-sm transition-colors ${
+                          isAuthenticated
+                            ? 'bg-primary text-white hover:bg-primary-dark'
+                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                        }`}
                       >
-                        提交新案例
+                        {isAuthenticated ? '提交新案例' : '登录后提交'}
                       </button>
                     </div>
                   ) : (
@@ -546,7 +537,7 @@ export default function Diagnosis() {
         </div>
       </div>
 
-      {showSubmitModal && (
+      {showSubmitModal && !showLoginToast && (
         <CaseSubmit
           onClose={() => setShowSubmitModal(false)}
           onSubmit={handleSubmit}
@@ -555,16 +546,33 @@ export default function Diagnosis() {
 
       <div className="fixed bottom-6 right-6">
         <button
-          onClick={() => setShowAIAssistant(!showAIAssistant)}
-          className={`w-14 h-14 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center ${
-            showAIAssistant
-              ? 'bg-primary-dark'
-              : 'bg-gradient-to-br from-primary to-primary-light'
-          }`}
+          onClick={() => setShowAIAssistant(true)}
+          className="w-14 h-14 rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center bg-gradient-to-br from-primary to-primary-light"
         >
           <Sparkles className="w-6 h-6 text-white" />
         </button>
       </div>
+
+      <Modal
+        isOpen={showAIAssistant}
+        onClose={() => setShowAIAssistant(false)}
+        title="AI智能诊断助手"
+        size="xl"
+      >
+        <AIDiagnosisAssistant
+          onCaseSelect={(caseId) => {
+            const foundCase = cases.find(c => c.id === caseId);
+            if (foundCase) {
+              navigate(`/cases/${caseId}`);
+              setShowAIAssistant(false);
+            }
+          }}
+          onRequireLogin={() => {
+            setShowAIAssistant(false);
+            setShowLoginToast(true);
+          }}
+        />
+      </Modal>
 
       <LoginRequiredToast
         show={showLoginToast}

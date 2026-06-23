@@ -435,6 +435,22 @@ exports.compareExperiments = async (req, res) => {
 };
 
 async function generateSmartAnswer(question, localResults) {
+  const lowerQuestion = question.toLowerCase();
+  
+  const chatKeywords = ['你能看到我吗', '在吗', '你好', '你好吗', 'hello', 'hi', '嗨', '聊天', '聊聊天', '聊聊', '说话'];
+  const isChatting = chatKeywords.some(keyword => lowerQuestion.includes(keyword));
+  
+  if (isChatting) {
+    return '我仅提供电脑故障诊断相关服务，闲聊类问题无法解答，请描述你的电脑故障问题。';
+  }
+  
+  const nonDesktopKeywords = ['服务器', '代码', '开发', '编程', '硬件维修', '拆机', '手机', '平板'];
+  const isNonDesktop = nonDesktopKeywords.some(keyword => lowerQuestion.includes(keyword));
+  
+  if (isNonDesktop) {
+    return '当前暂无该故障标准化解决方案，请前往网站【故障诊断】板块提交工单，可申请工程师远程协助。';
+  }
+
   const answers = {
     'dns': '配置DNS解析通常包括以下步骤：1. 打开网络连接属性；2. 选择IPv4协议；3. 设置首选DNS服务器地址；4. 验证配置是否生效。',
     '打印机': '解决打印机脱机问题的方法：1. 检查打印机电源和连接；2. 重启打印后台处理程序；3. 检查打印机驱动；4. 清除打印队列。',
@@ -445,7 +461,6 @@ async function generateSmartAnswer(question, localResults) {
     '连接': '连接超时问题解决：1. 检查网络连接；2. 增加超时时间设置；3. 检查目标服务器状态；4. 尝试更换网络环境。'
   };
   
-  const lowerQuestion = question.toLowerCase();
   const matchedKey = Object.keys(answers).find(key => lowerQuestion.includes(key));
   
   if (matchedKey) {
@@ -473,22 +488,66 @@ async function generateSmartAnswer(question, localResults) {
     return response;
   }
   
-  return '抱歉，知识库中没有找到相关信息。基于我的专业知识，为您提供以下一般性建议：\n\n1. 首先尝试重启相关服务或设备\n2. 检查系统日志获取更多错误信息\n3. 确保系统和软件已更新到最新版本\n4. 如果问题持续存在，请提供更多详细信息以便进一步分析';
+  return '当前暂无该故障标准化解决方案，可以联网查询可靠方案';
 }
 
 async function simulateAIDiagnosis(symptoms, deviceType, brand, model, errorCode, additionalInfo) {
   const diagnosisId = `diag-${Date.now()}`;
   
   let primaryCause = '系统故障';
+  let secondaryCauses = [];
   let solutions = [];
+  let precautions = ['备份重要数据', '关闭不必要的程序'];
   
-  if (symptoms.includes('系统无法正常关机')) {
-    primaryCause = 'Windows更新导致系统文件损坏';
+  const hasErrorCode = errorCode && errorCode.trim() !== '';
+  const hasMemoryError = errorCode && errorCode.includes('内存') && errorCode.includes('read');
+  
+  if (hasMemoryError) {
+    primaryCause = '"此内存不能为read"错误通常由以下原因导致：1) 应用程序访问了无效的内存地址；2) 内存模块损坏或不兼容；3) 系统文件损坏；4) 病毒感染或恶意软件';
+    secondaryCauses = ['内存硬件故障', '系统文件损坏', '应用程序冲突', '病毒感染'];
+    solutions = [
+      {
+        id: 'sol-001',
+        title: '运行内存诊断工具',
+        steps: ['按下Win+R键打开运行', '输入mdsched.exe并回车', '选择"立即重新启动并检查问题"', '等待诊断完成'],
+        estimatedTime: '15分钟',
+        difficulty: 'easy',
+        successRate: 0.82
+      },
+      {
+        id: 'sol-002',
+        title: '修复系统文件',
+        steps: ['以管理员身份打开命令提示符', '执行 sfc /scannow 命令', '等待扫描完成并修复', '如果sfc无法修复，执行 DISM /Online /Cleanup-Image /RestoreHealth'],
+        estimatedTime: '20分钟',
+        difficulty: 'medium',
+        successRate: 0.88
+      },
+      {
+        id: 'sol-003',
+        title: '检查并更新驱动程序',
+        steps: ['右键点击此电脑选择管理', '进入设备管理器', '查看是否有黄色感叹号的设备', '右键点击更新驱动程序', '重点检查显卡、声卡、网卡驱动'],
+        estimatedTime: '15分钟',
+        difficulty: 'medium',
+        successRate: 0.78
+      },
+      {
+        id: 'sol-004',
+        title: '执行病毒扫描',
+        steps: ['启动杀毒软件', '执行全面系统扫描', '清除发现的恶意软件', '重启系统'],
+        estimatedTime: '30分钟',
+        difficulty: 'easy',
+        successRate: 0.85
+      }
+    ];
+    precautions = ['重要提示：在进行任何系统修复前，请备份重要数据', '内存诊断可能需要重启系统', '修复系统文件时不要中断操作'];
+  } else if (symptoms.includes('系统无法正常关机')) {
+    primaryCause = 'Windows更新导致系统文件损坏或系统服务异常';
+    secondaryCauses = ['最近安装的Windows更新不兼容', '系统服务Shutdown blocked', '电源计划设置问题', '驱动程序冲突'];
     solutions = [
       {
         id: 'sol-001',
         title: '修复系统文件',
-        steps: ['运行 sfc /scannow', '运行 DISM /Online /Cleanup-Image /RestoreHealth', '重启系统'],
+        steps: ['以管理员身份打开命令提示符', '运行 sfc /scannow', '运行 DISM /Online /Cleanup-Image /RestoreHealth', '重启系统'],
         estimatedTime: '15分钟',
         difficulty: 'medium',
         successRate: 0.88
@@ -496,39 +555,59 @@ async function simulateAIDiagnosis(symptoms, deviceType, brand, model, errorCode
       {
         id: 'sol-002',
         title: '卸载最近更新',
-        steps: ['打开设置', '进入更新和安全', '查看更新历史', '卸载更新'],
+        steps: ['打开设置', '进入更新和安全', '点击查看更新历史', '选择卸载更新', '找到最近安装的更新并卸载'],
         estimatedTime: '10分钟',
         difficulty: 'easy',
         successRate: 0.92
+      },
+      {
+        id: 'sol-003',
+        title: '检查关机服务',
+        steps: ['按下Win+R键打开运行', '输入services.msc', '找到Windows Update服务', '确保服务状态为运行', '检查Remote Procedure Call服务'],
+        estimatedTime: '5分钟',
+        difficulty: 'easy',
+        successRate: 0.80
       }
     ];
+    precautions = ['卸载更新后可能需要重新启动', '建议在卸载前记录更新KB编号以便恢复'];
   } else if (symptoms.includes('Office崩溃')) {
-    primaryCause = 'Office组件损坏或冲突';
+    primaryCause = 'Office组件损坏、冲突或系统资源不足';
+    secondaryCauses = ['Office安装文件损坏', 'COM加载项冲突', '系统资源不足', 'Office版本与系统不兼容'];
     solutions = [
       {
         id: 'sol-001',
         title: '修复Office安装',
-        steps: ['打开控制面板', '找到Microsoft Office', '选择更改', '点击修复'],
+        steps: ['打开控制面板', '找到Microsoft Office', '选择更改', '点击联机修复', '等待修复完成'],
         estimatedTime: '20分钟',
         difficulty: 'easy',
         successRate: 0.92
       },
       {
         id: 'sol-002',
+        title: '以安全模式启动Office',
+        steps: ['按下Win+R键打开运行', '输入excel /safe（或word /safe等）', '检查是否正常启动', '如果正常，进入选项->加载项->COM加载项->转到', '禁用可疑加载项'],
+        estimatedTime: '10分钟',
+        difficulty: 'medium',
+        successRate: 0.85
+      },
+      {
+        id: 'sol-003',
         title: '更新Office到最新版本',
-        steps: ['打开Office应用', '进入账户设置', '检查更新'],
+        steps: ['打开任意Office应用', '进入文件->账户', '点击更新选项', '选择立即更新'],
         estimatedTime: '15分钟',
         difficulty: 'easy',
         successRate: 0.85
       }
     ];
+    precautions = ['修复Office前请保存所有打开的文档', '禁用加载项前记录其名称以便恢复'];
   } else if (symptoms.includes('网络连接问题') || symptoms.includes('DNS故障')) {
-    primaryCause = '网络配置异常或DNS服务器问题';
+    primaryCause = '网络配置异常、DNS服务器问题或网络适配器故障';
+    secondaryCauses = ['DNS缓存污染', '路由器DHCP故障', '网络适配器驱动问题', '防火墙阻止连接'];
     solutions = [
       {
         id: 'sol-001',
         title: '重置网络配置',
-        steps: ['以管理员身份打开命令提示符', '执行 ipconfig /release', '执行 ipconfig /flushdns', '执行 ipconfig /renew'],
+        steps: ['以管理员身份打开命令提示符', '执行 ipconfig /release', '执行 ipconfig /flushdns', '执行 ipconfig /renew', '执行 netsh winsock reset'],
         estimatedTime: '5分钟',
         difficulty: 'medium',
         successRate: 0.85
@@ -536,22 +615,141 @@ async function simulateAIDiagnosis(symptoms, deviceType, brand, model, errorCode
       {
         id: 'sol-002',
         title: '更换DNS服务器',
-        steps: ['打开网络连接属性', '选择IPv4', '设置首选DNS为223.5.5.5', '设置备用DNS为223.6.6.6'],
+        steps: ['打开网络连接属性', '选择Internet协议版本4 (TCP/IPv4)', '点击属性', '设置首选DNS为223.5.5.5', '设置备用DNS为223.6.6.6', '点击确定'],
         estimatedTime: '10分钟',
         difficulty: 'easy',
         successRate: 0.90
+      },
+      {
+        id: 'sol-003',
+        title: '重启网络适配器',
+        steps: ['打开设备管理器', '找到网络适配器', '右键点击当前使用的适配器', '选择禁用', '等待10秒后选择启用'],
+        estimatedTime: '5分钟',
+        difficulty: 'easy',
+        successRate: 0.80
       }
     ];
+    precautions = ['更换DNS前记录原DNS设置', '重置网络后可能需要重新连接WiFi'];
+  } else if (symptoms.includes('打印机脱机') || symptoms.includes('打印机')) {
+    primaryCause = '打印机连接问题、驱动程序故障或打印队列堵塞';
+    secondaryCauses = ['USB/网络连接断开', '打印后台处理程序异常', '打印机驱动过时', '打印队列堆积'];
+    solutions = [
+      {
+        id: 'sol-001',
+        title: '检查打印机连接',
+        steps: ['检查USB线是否插好或网络连接是否正常', '重启打印机', '确保打印机处于就绪状态', '打印测试页'],
+        estimatedTime: '5分钟',
+        difficulty: 'easy',
+        successRate: 0.85
+      },
+      {
+        id: 'sol-002',
+        title: '重启打印后台处理程序',
+        steps: ['按下Win+R键打开运行', '输入services.msc', '找到Print Spooler服务', '右键点击重新启动', '等待服务重启完成'],
+        estimatedTime: '5分钟',
+        difficulty: 'easy',
+        successRate: 0.90
+      },
+      {
+        id: 'sol-003',
+        title: '清除打印队列',
+        steps: ['打开控制面板', '进入设备和打印机', '右键点击打印机', '选择查看正在打印的内容', '点击打印机菜单', '选择取消所有文档'],
+        estimatedTime: '5分钟',
+        difficulty: 'easy',
+        successRate: 0.88
+      }
+    ];
+    precautions = ['清除打印队列前确认不需要的打印任务', '重启服务可能会中断正在进行的打印'];
+  } else if (symptoms.includes('蓝屏错误') || symptoms.includes('蓝屏')) {
+    primaryCause = '系统严重错误，可能由硬件故障、驱动问题或系统文件损坏引起';
+    secondaryCauses = ['硬件不兼容或损坏', '驱动程序冲突', '系统文件损坏', '恶意软件感染'];
+    solutions = [
+      {
+        id: 'sol-001',
+        title: '分析蓝屏错误代码',
+        steps: ['记录蓝屏时显示的STOP代码', '访问微软官方文档查找代码含义', '根据代码定位问题', '常见代码：0x0000007B(启动问题), 0x000000D1(驱动问题), 0x000000F4(系统进程终止)'],
+        estimatedTime: '10分钟',
+        difficulty: 'medium',
+        successRate: 0.80
+      },
+      {
+        id: 'sol-002',
+        title: '进入安全模式排查',
+        steps: ['重启电脑', '开机时按F8键', '选择安全模式', '如果能进入安全模式，说明问题可能是第三方软件或驱动引起的', '卸载最近安装的软件或驱动'],
+        estimatedTime: '15分钟',
+        difficulty: 'medium',
+        successRate: 0.85
+      },
+      {
+        id: 'sol-003',
+        title: '检查硬件',
+        steps: ['关闭电脑并断开电源', '打开机箱检查内存条是否插紧', '检查显卡是否插紧', '清理灰尘', '重新连接硬件'],
+        estimatedTime: '20分钟',
+        difficulty: 'hard',
+        successRate: 0.82
+      }
+    ];
+    precautions = ['进入安全模式前保存重要数据', '硬件操作需要一定的计算机知识', '建议在断电状态下操作'];
+  } else if (errorCode && errorCode.includes('0x')) {
+    primaryCause = `错误代码 ${errorCode} 表示系统遇到了特定的故障。这个代码通常指向特定的系统组件或驱动程序问题。`;
+    secondaryCauses = ['系统文件损坏', '驱动程序问题', '硬件兼容性问题', '软件冲突'];
+    solutions = [
+      {
+        id: 'sol-001',
+        title: '查询错误代码含义',
+        steps: ['打开浏览器', '访问微软支持网站', '搜索错误代码 ' + errorCode, '根据官方文档进行修复'],
+        estimatedTime: '10分钟',
+        difficulty: 'easy',
+        successRate: 0.85
+      },
+      {
+        id: 'sol-002',
+        title: '运行系统文件检查',
+        steps: ['以管理员身份打开命令提示符', '执行 sfc /scannow', '等待扫描完成', '根据提示修复问题'],
+        estimatedTime: '15分钟',
+        difficulty: 'medium',
+        successRate: 0.82
+      },
+      {
+        id: 'sol-003',
+        title: '更新系统和驱动',
+        steps: ['打开设置', '进入更新和安全', '检查Windows更新', '安装所有可用更新', '更新设备驱动程序'],
+        estimatedTime: '30分钟',
+        difficulty: 'easy',
+        successRate: 0.78
+      }
+    ];
+    precautions = ['更新前备份重要数据', '更新过程可能需要重启'];
   } else {
-    primaryCause = '系统异常，需要进一步诊断';
+    primaryCause = '系统异常，根据提供的症状分析可能存在以下问题：';
+    if (symptoms.length > 0) {
+      primaryCause += symptoms.join('、');
+    }
+    secondaryCauses = ['系统服务异常', '软件冲突', '资源不足', '配置错误'];
     solutions = [
       {
         id: 'sol-001',
         title: '运行系统诊断',
-        steps: ['打开设置', '进入更新和安全', '选择疑难解答', '运行相应的诊断工具'],
+        steps: ['打开设置', '进入更新和安全', '选择疑难解答', '选择合适的诊断工具运行'],
         estimatedTime: '15分钟',
         difficulty: 'easy',
         successRate: 0.75
+      },
+      {
+        id: 'sol-002',
+        title: '检查系统日志',
+        steps: ['按下Win+R键打开运行', '输入eventvwr.msc', '展开Windows日志', '查看系统日志中的错误信息', '根据错误ID查找解决方案'],
+        estimatedTime: '10分钟',
+        difficulty: 'medium',
+        successRate: 0.80
+      },
+      {
+        id: 'sol-003',
+        title: '重启相关服务',
+        steps: ['按下Win+R键打开运行', '输入services.msc', '找到相关服务', '右键点击重新启动'],
+        estimatedTime: '5分钟',
+        difficulty: 'easy',
+        successRate: 0.70
       }
     ];
   }
@@ -562,19 +760,25 @@ async function simulateAIDiagnosis(symptoms, deviceType, brand, model, errorCode
     analysis: {
       confidence: Math.random() * 0.15 + 0.8,
       primaryCause,
-      secondaryCauses: ['系统服务异常', '软件冲突'],
+      secondaryCauses,
       suggestedSolutions: solutions,
       relatedCases: [
         {
           id: 'case-001',
-          title: 'Windows更新后系统异常修复',
+          title: 'Windows系统故障排查指南',
           matchScore: Math.floor(Math.random() * 20) + 80,
           link: '/cases/case-001'
+        },
+        {
+          id: 'case-002',
+          title: '常见系统错误代码解析',
+          matchScore: Math.floor(Math.random() * 15) + 75,
+          link: '/cases/case-002'
         }
       ],
-      precautions: ['备份重要数据', '关闭不必要的程序']
+      precautions
     },
-    aiSuggestion: `根据您的症状分析，最可能是${primaryCause}。建议先尝试${solutions[0]?.title}，如果问题仍然存在再尝试其他方案。`
+    aiSuggestion: `根据您的症状分析，最可能是${primaryCause}。建议先尝试${solutions[0]?.title || '系统诊断'}。`
   };
 }
 

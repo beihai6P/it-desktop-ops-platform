@@ -140,8 +140,8 @@ class ApiScheduler {
       
       if (data.data === undefined) {
         return {
-          success: true,
           ...data,
+          success: true,
           data: data as unknown,
         } as ApiResponse<T>;
       }
@@ -160,12 +160,12 @@ class ApiScheduler {
     return this.request<T>({ method: 'GET', url, params, headers });
   }
 
-  async post<T = unknown>(url: string, data?: Record<string, unknown>, headers?: Record<string, string>): Promise<ApiResponse<T>> {
-    return this.request<T>({ method: 'POST', url, data, headers });
+  async post<T = unknown>(url: string, data?: Record<string, unknown>, params?: Record<string, string | number | boolean>, headers?: Record<string, string>): Promise<ApiResponse<T>> {
+    return this.request<T>({ method: 'POST', url, data, params, headers });
   }
 
-  async put<T = unknown>(url: string, data?: Record<string, unknown>, headers?: Record<string, string>): Promise<ApiResponse<T>> {
-    return this.request<T>({ method: 'PUT', url, data, headers });
+  async put<T = unknown>(url: string, data?: Record<string, unknown>, params?: Record<string, string | number | boolean>, headers?: Record<string, string>): Promise<ApiResponse<T>> {
+    return this.request<T>({ method: 'PUT', url, data, params, headers });
   }
 
   async delete<T = unknown>(url: string, params?: Record<string, string | number | boolean>, headers?: Record<string, string>): Promise<ApiResponse<T>> {
@@ -386,3 +386,6 @@ export const apiPatch = apiScheduler.patch.bind(apiScheduler);
 export const apiUpload = apiScheduler.upload.bind(apiScheduler);
 export const apiDownload = apiScheduler.download.bind(apiScheduler);
 export const apiDownloadPost = apiScheduler.downloadPost.bind(apiScheduler);
+
+// 评论API已移至独立的 commentApi.ts 模块
+export { commentApi } from './commentApi';

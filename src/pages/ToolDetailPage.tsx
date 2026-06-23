@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Share2, Check, Clock, Calendar, FileText, Shield, ArrowLeft, Heart } from 'lucide-react';
+import { Download, Share2, Check, Clock, Calendar, FileText, Shield, ArrowLeft, Heart, ZoomIn } from 'lucide-react';
 import type { Tool } from '@/types';
 import { toolAPI } from '@/services/api';
 import CommentSection from '@/components/CommentSection';
+import ImageViewer from '@/components/ImageViewer';
 import { apiDownloadPost } from '@/scheduler';
 
 export default function ToolDetailPage() {
@@ -13,6 +14,7 @@ export default function ToolDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFavorited, setIsFavorited] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string } | null>(null);
   const [showShareToast, setShowShareToast] = useState(false);
 
   const loadTool = useCallback(async () => {
@@ -255,16 +257,29 @@ export default function ToolDetailPage() {
 
             {tool.screenshots && tool.screenshots.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border mt-6 p-6">
-                <h2 className="text-lg font-semibold mb-4">截图</h2>
+                <h2 className="text-lg font-semibold mb-4">软件详情</h2>
                 <div className="grid grid-cols-2 gap-4">
-                  {tool.screenshots.map((screenshot, index) => (
-                    <img
-                      key={index}
-                      src={screenshot}
-                      alt={`截图 ${index + 1}`}
-                      className="w-full h-48 object-cover rounded-lg"
-                    />
-                  ))}
+                  {tool.screenshots.map((screenshot, index) => {
+                    const imageUrl = screenshot.startsWith('http') 
+                      ? screenshot 
+                      : `/api/tools/screenshot/${encodeURIComponent(screenshot)}`;
+                    return (
+                      <div 
+                        key={index}
+                        className="relative group cursor-pointer"
+                        onClick={() => setSelectedImage({ src: imageUrl, alt: `软件详情 ${index + 1}` })}
+                      >
+                        <img
+                          src={imageUrl}
+                          alt={`软件详情 ${index + 1}`}
+                          className="w-full h-48 object-cover rounded-lg transition-transform duration-300 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center">
+                          <ZoomIn className="w-8 h-8 text-white" />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -321,6 +336,14 @@ export default function ToolDetailPage() {
         <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg">
           链接已复制到剪贴板
         </div>
+      )}
+
+      {selectedImage && (
+        <ImageViewer
+          src={selectedImage.src}
+          alt={selectedImage.alt}
+          onClose={() => setSelectedImage(null)}
+        />
       )}
     </div>
   );

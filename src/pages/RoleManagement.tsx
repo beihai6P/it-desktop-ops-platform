@@ -167,7 +167,7 @@ const RoleManagement: React.FC = () => {
         </div>
 
         {/* Empty State */}
-        {roles.length === 0 && !loading && (
+        {(roles?.length || 0) === 0 && !loading && (
           <div className="bg-white rounded-xl p-12 border border-primary/20 text-center">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="w-8 h-8 text-gray-400" />
@@ -184,7 +184,7 @@ const RoleManagement: React.FC = () => {
         )}
 
         {/* Role List */}
-        {roles.length > 0 && (
+        {(roles?.length || 0) > 0 && (
           <div className="space-y-6">
             <div className="bg-white rounded-xl border border-primary/20 overflow-hidden">
               <div className="p-4 border-b border-gray-100">
@@ -239,9 +239,9 @@ const RoleManagement: React.FC = () => {
                                 {perm.name}
                               </span>
                             ))}
-                            {role.permissions.length > 6 && (
+                            {(role.permissions?.length || 0) > 6 && (
                               <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
-                                +{role.permissions.length - 6} 更多
+                                +{(role.permissions?.length || 0) - 6} 更多
                               </span>
                             )}
                           </div>

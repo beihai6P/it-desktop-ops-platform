@@ -22,9 +22,10 @@ interface ChatMessage {
 interface AIDiagnosisAssistantProps {
   onSolutionSelect?: (solution: DiagnosisSolution) => void;
   onCaseSelect?: (caseId: string) => void;
+  onRequireLogin?: () => void;
 }
 
-export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }: AIDiagnosisAssistantProps) {
+export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect, onRequireLogin }: AIDiagnosisAssistantProps) {
   const { isAuthenticated } = useAuth();
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [customSymptom, setCustomSymptom] = useState('');
@@ -54,9 +55,8 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
   const loadSymptoms = async () => {
     try {
       const response = await aiAPI.getSymptoms({ limit: 15 });
-      const data = response?.data?.data;
-      if (data && data.symptoms) {
-        setSymptoms(data.symptoms);
+      if (response && response.data && response.data.symptoms) {
+        setSymptoms(response.data.symptoms);
       } else {
         throw new Error('Invalid response structure');
       }
@@ -119,7 +119,7 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
 
   const analyzeSymptoms = async () => {
     if (!isAuthenticated) {
-      setShowLoginToast(true);
+      onRequireLogin?.();
       return;
     }
     if (selectedSymptoms.length === 0 || loading) return;
@@ -133,7 +133,7 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
         deviceType,
         errorCode,
       });
-      setDiagnosisResult(response.data.data);
+      setDiagnosisResult(response.data);
 
       const queryStr = selectedSymptoms.join('、');
       saveChatHistory([queryStr, ...chatHistory]);
@@ -146,19 +146,19 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
 
   const sendMessage = async () => {
     if (!isAuthenticated) {
-      setShowLoginToast(true);
+      onRequireLogin?.();
       return;
     }
     if (!inputMessage.trim() || isThinking) return;
 
     const userMessage: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: 'user',
       content: inputMessage,
       timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
     };
     
-    setChatMessages([...chatMessages, userMessage]);
+    setChatMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsThinking(true);
 
@@ -169,9 +169,9 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
         topK: 5
       });
 
-      const result = response.data.data;
+      const result = response.data;
       const aiMessage: ChatMessage = {
-        id: `msg-${Date.now()}`,
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         type: 'ai',
         content: result.answer,
         timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
@@ -180,16 +180,16 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
         localResults: result.localResults
       };
 
-      setChatMessages([...chatMessages, userMessage, aiMessage]);
+      setChatMessages(prev => [...prev, aiMessage]);
       saveChatHistory([inputMessage, ...chatHistory]);
     } catch {
       const errorMessage: ChatMessage = {
-        id: `msg-${Date.now()}`,
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         type: 'ai',
         content: '抱歉，暂时无法回答您的问题，请稍后重试。',
         timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
       };
-      setChatMessages([...chatMessages, userMessage, errorMessage]);
+      setChatMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsThinking(false);
     }
@@ -604,7 +604,7 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
             <div className="space-y-3">
               {diagnosisResult.analysis.suggestedSolutions.map((solution, index) => (
                 <div
-                  key={solution.id}
+                  key={solution.id || `solution-${index}`}
                   onClick={() => onSolutionSelect?.(solution)}
                   className="p-4 bg-theme-bg rounded-xl border border-primary/10 hover:border-primary/30 cursor-pointer transition-all"
                 >
@@ -688,10 +688,6 @@ export default function AIDiagnosisAssistant({ onSolutionSelect, onCaseSelect }:
         </div>
       )}
 
-      <LoginRequiredToast
-        show={showLoginToast}
-        onClose={() => setShowLoginToast(false)}
-      />
     </div>
   );
 }

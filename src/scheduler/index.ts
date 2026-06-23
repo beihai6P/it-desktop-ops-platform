@@ -2,6 +2,7 @@ export * from './types';
 export * from './config';
 export * from './api';
 export * from './storage';
+export * from './commentApi';
 
 import { configManager, logger } from './config';
 import { apiScheduler } from './api';

@@ -30,10 +30,14 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [aiSettings, setAiSettings] = useState({
-    enableAI: true,
-    aiModel: 'gpt-4',
+    enabled: true,
+    provider: 'doubao',
+    apiKey: '',
+    apiUrl: 'https://ark.cn-beijing.volces.com/api/text/text',
+    model: 'doubao-pro',
     maxTokens: 4096,
     temperature: 0.7,
+    timeout: 30000,
   });
   const [dataRetention, setDataRetention] = useState({
     userDataRetention: 365,
@@ -91,6 +95,23 @@ export default function Settings() {
         enableEmailNotifications: settings.notifications.enableEmailNotifications,
         enablePushNotifications: settings.notifications.enablePushNotifications,
       });
+      await settingsAPI.updateAISettings({
+        enabled: aiSettings.enabled,
+        provider: aiSettings.provider,
+        apiKey: aiSettings.apiKey,
+        apiUrl: aiSettings.apiUrl,
+        model: aiSettings.model,
+        maxTokens: aiSettings.maxTokens,
+        temperature: aiSettings.temperature,
+        timeout: aiSettings.timeout,
+      });
+      await settingsAPI.updateDataRetention({
+        logRetentionDays: dataRetention.logRetention,
+        backupFrequency: dataRetention.backupFrequency,
+        autoCleanupEnabled: true,
+        cleanupIntervalDays: 7,
+        maxStorageMB: 10240,
+      });
       setSaveMessage('success');
     } catch (error) {
       console.error('Failed to save settings:', error);
@@ -123,10 +144,14 @@ export default function Settings() {
       updatedAt: '',
     });
     setAiSettings({
-      enableAI: true,
-      aiModel: 'gpt-4',
+      enabled: true,
+      provider: 'doubao',
+      apiKey: '',
+      apiUrl: 'https://ark.cn-beijing.volces.com/api/text/text',
+      model: 'doubao-pro',
       maxTokens: 4096,
       temperature: 0.7,
+      timeout: 30000,
     });
     setDataRetention({
       userDataRetention: 365,
@@ -399,8 +424,8 @@ export default function Settings() {
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={aiSettings.enableAI}
-                    onChange={(e) => setAiSettings({ ...aiSettings, enableAI: e.target.checked })}
+                    checked={aiSettings.enabled}
+                    onChange={(e) => setAiSettings({ ...aiSettings, enabled: e.target.checked })}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
@@ -408,19 +433,52 @@ export default function Settings() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-muted mb-2">AI模型</label>
+                <label className="block text-sm font-medium text-text-muted mb-2">AI服务提供商</label>
                 <select
-                  value={aiSettings.aiModel}
-                  onChange={(e) => setAiSettings({ ...aiSettings, aiModel: e.target.value })}
+                  value={aiSettings.provider}
+                  onChange={(e) => setAiSettings({ ...aiSettings, provider: e.target.value })}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
                 >
-                  <option value="gpt-4">GPT-4</option>
-                  <option value="gpt-4o">GPT-4o</option>
-                  <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                  <option value="doubao">豆包 (Doubao)</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="custom">自定义</option>
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-2">API密钥</label>
+                <input
+                  type="password"
+                  value={aiSettings.apiKey}
+                  onChange={(e) => setAiSettings({ ...aiSettings, apiKey: e.target.value })}
+                  placeholder="请输入API密钥"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-2">API端点URL</label>
+                <input
+                  type="text"
+                  value={aiSettings.apiUrl}
+                  onChange={(e) => setAiSettings({ ...aiSettings, apiUrl: e.target.value })}
+                  placeholder="请输入API端点URL"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-2">模型名称</label>
+                <input
+                  type="text"
+                  value={aiSettings.model}
+                  onChange={(e) => setAiSettings({ ...aiSettings, model: e.target.value })}
+                  placeholder="请输入模型名称"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-text-muted mb-2">最大Token数</label>
                   <input
@@ -439,6 +497,15 @@ export default function Settings() {
                     max="1"
                     value={aiSettings.temperature}
                     onChange={(e) => setAiSettings({ ...aiSettings, temperature: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-muted mb-2">超时时间(ms)</label>
+                  <input
+                    type="number"
+                    value={aiSettings.timeout}
+                    onChange={(e) => setAiSettings({ ...aiSettings, timeout: parseInt(e.target.value) || 0 })}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 </div>

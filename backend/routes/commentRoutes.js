@@ -19,7 +19,6 @@ router.post(
   '/',
   protect,
   [
-    body('postId').notEmpty().withMessage('请输入帖子ID'),
     body('content').notEmpty().withMessage('请输入评论内容')
   ],
   createComment

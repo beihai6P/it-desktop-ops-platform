@@ -115,3 +115,52 @@ export interface Logger {
   warn: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
 }
+
+// 评论相关类型
+export interface CommentReply {
+  id: string;
+  commentId: string;
+  author: string;
+  authorId: string;
+  content: string;
+  likes: number;
+  createdAt: string | Date;
+}
+
+export interface Comment {
+  id: string;
+  postId: string;
+  author: string;
+  authorId: string;
+  content: string;
+  likes: number;
+  createdAt: string | Date;
+  replies: CommentReply[];
+}
+
+export interface CommentListResponse {
+  success: boolean;
+  comments: Comment[];
+  total: number;
+  pages: number;
+  currentPage: number;
+}
+
+export interface CreateCommentRequest {
+  postId: string;
+  content: string;
+}
+
+export interface CreateReplyRequest {
+  content: string;
+}
+
+export interface LikeResponse {
+  success: boolean;
+  likes: number;
+}
+
+export interface DeleteResponse {
+  success: boolean;
+  message: string;
+}

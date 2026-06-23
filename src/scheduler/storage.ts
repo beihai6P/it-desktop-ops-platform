@@ -17,6 +17,12 @@ class StorageScheduler {
   private calculateSHA256 = async (file: File): Promise<string | null> => {
     try {
       const cryptoObj = window.crypto || (window as unknown as { msCrypto?: Crypto }).msCrypto;
+      
+      if (!cryptoObj || !cryptoObj.subtle) {
+        logger.warn('Crypto API not available, skipping SHA256 calculation');
+        return null;
+      }
+      
       const fileSize = file.size;
 
       if (fileSize > 10 * 1024 * 1024) {
@@ -182,7 +188,8 @@ class StorageScheduler {
     const response = await apiDelete('/presigned/multipart/' + fileId);
     this.uploadSessions.delete(fileId);
 
-    return { success: response.success, message: response.data?.message || '' };
+    const responseData = response.data as { message?: string } | undefined;
+    return { success: response.success, message: responseData?.message || '' };
   }
 
   async confirmUpload(fileId: string, etag: string, sha256?: string): Promise<PresignedResult> {
@@ -203,10 +210,10 @@ class StorageScheduler {
     try {
       uploadFile.status = 'hashing';
       const sha256 = await this.calculateSHA256(file);
-      uploadFile.sha256 = sha256;
+      uploadFile.sha256 = sha256 ?? undefined;
 
       uploadFile.status = 'checking';
-      const presignedResult = await this.getPresignedUrl(file, category, accessLevel, sha256);
+      const presignedResult = await this.getPresignedUrl(file, category, accessLevel, sha256 ?? undefined);
 
       if (!presignedResult.success) {
         if (presignedResult.duplicate && presignedResult.existingFile) {
@@ -224,6 +231,10 @@ class StorageScheduler {
       uploadFile.presignedUrl = presignedUrl;
       uploadFile.status = 'uploading';
 
+      if (!presignedUrl) {
+        throw new Error('获取上传URL失败');
+      }
+
       const response = await fetch(presignedUrl, {
         method: 'PUT',
         body: file,
@@ -237,7 +248,7 @@ class StorageScheduler {
       }
 
       const etag = response.headers.get('ETag');
-      await this.confirmUpload(fileId!, etag!, sha256);
+      await this.confirmUpload(fileId!, etag!, sha256 ?? undefined);
 
       uploadFile.status = 'done';
       uploadFile.progress = 100;
@@ -257,10 +268,10 @@ class StorageScheduler {
     try {
       uploadFile.status = 'hashing';
       const sha256 = await this.calculateSHA256(file);
-      uploadFile.sha256 = sha256;
+      uploadFile.sha256 = sha256 ?? undefined;
 
       uploadFile.status = 'uploading';
-      const initResult = await this.initMultipartUpload(file, category, accessLevel, sha256);
+      const initResult = await this.initMultipartUpload(file, category, accessLevel, sha256 ?? undefined);
 
       if (!initResult.success) {
         if (initResult.duplicate && initResult.existingFile) {
@@ -357,7 +368,7 @@ class StorageScheduler {
         return null;
       }
 
-      const chunks: Uint8Array[] = [];
+      const chunks: BlobPart[] = [];
       let receivedLength = 0;
 
       while (true) {

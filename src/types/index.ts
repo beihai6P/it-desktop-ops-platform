@@ -238,10 +238,15 @@ export interface ChartData {
 export interface Ticket {
   id: string;
   title: string;
+  description?: string;
   priority: 'high' | 'medium' | 'low';
   status: 'open' | 'in_progress' | 'resolved';
-  assignee: string;
+  category?: string;
+  assignee?: { id: string; name: string } | string;
+  assigneeId?: string;
+  requester?: { id: string; name: string; email: string };
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface FaultType {
@@ -347,6 +352,8 @@ export interface Post {
   reviewReason?: string;
   reviewedBy?: string;
   reviewedAt?: string;
+  isEssence?: boolean;
+  isPinned?: boolean;
 }
 
 export interface ReviewStats {
@@ -412,6 +419,28 @@ export interface ToolComment {
     content: string;
     createdAt: string;
   }[];
+}
+
+// 帖子评论类型 (API返回)
+export interface PostComment {
+  id: string;
+  postId: string;
+  author: string;
+  authorId: string;
+  content: string;
+  likes: number;
+  createdAt: string;
+  replies: PostReply[];
+}
+
+export interface PostReply {
+  id: string;
+  commentId: string;
+  author: string;
+  authorId: string;
+  content: string;
+  likes: number;
+  createdAt: string;
 }
 
 export interface Tool {

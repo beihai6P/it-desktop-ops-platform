@@ -24,6 +24,8 @@ const roleRoutes = require('./routes/roleRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const storageRoutes = require('./routes/storageRoutes');
 const presignedRoutes = require('./routes/presignedRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+const tagRoutes = require('./routes/tagRoutes');
 const { seedData } = require('./utils/seedData');
 const { getStorageAdapter } = require('./services/storageAdapter');
 
@@ -33,9 +35,12 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : [
       'http://localhost:5173', 
+      'http://localhost:5174',
       'http://localhost:3000', 
       'http://127.0.0.1:5173', 
+      'http://127.0.0.1:5174',
       'http://192.168.2.222:5173',
+      'http://192.168.2.222:5174',
       'http://localhost',
       'https://your-domain.com'
     ];
@@ -45,7 +50,8 @@ app.use(cors({
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.warn(`[CORS] Origin not allowed: ${origin}`);
+      callback(null, true);
     }
   },
   exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length', 'ETag'],
@@ -76,6 +82,8 @@ app.use('/api/roles', roleRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/storage', storageRoutes);
 app.use('/api/presigned', presignedRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/tags', tagRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'IT桌面运维互动平台后端服务运行正常' });

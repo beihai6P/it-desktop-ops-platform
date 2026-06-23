@@ -76,7 +76,6 @@ exports.login = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // 检查用户是否存在
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(401).json({
@@ -85,7 +84,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // 检查账号是否被锁定
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       const remainingTime = Math.ceil((user.lockedUntil - new Date()) / 1000 / 60);
       return res.status(423).json({
@@ -94,14 +92,11 @@ exports.login = async (req, res) => {
       });
     }
 
-    // 验证密码
     const isMatch = await user.matchPassword(password);
     
-    // 更新登录尝试次数
     if (!isMatch) {
       user.loginAttempts += 1;
       
-      // 如果连续失败5次，锁定账号30分钟
       if (user.loginAttempts >= 5) {
         user.lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
         await user.save();
@@ -118,7 +113,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // 登录成功，重置登录尝试次数
     user.loginAttempts = 0;
     user.lockedUntil = null;
     user.lastLoginAt = new Date();
@@ -126,7 +120,6 @@ exports.login = async (req, res) => {
 
     const token = generateToken(user._id);
 
-    // 直接使用已验证的用户数据，不依赖populate
     res.status(200).json({
       success: true,
       message: '登录成功',
@@ -142,7 +135,7 @@ exports.login = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('登录失败:', error);
+    console.error('登录失败:', error.message);
     res.status(500).json({
       success: false,
       message: '服务器内部错误'

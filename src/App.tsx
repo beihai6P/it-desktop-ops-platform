@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
 import PublicHome from '@/pages/PublicHome';
 import Home from '@/pages/Home';
 import Diagnosis from '@/pages/Diagnosis';
@@ -16,10 +18,12 @@ import Login from '@/pages/Login';
 import UserManagement from '@/pages/UserManagement';
 import RoleManagement from '@/pages/RoleManagement';
 import Review from '@/pages/Review';
+import TicketManagement from '@/pages/TicketManagement';
 import Profile from '@/pages/Profile';
 import ToolDetailPage from '@/pages/ToolDetailPage';
 import DocumentDetailPage from '@/pages/DocumentDetailPage';
 import PostDetailPage from '@/pages/PostDetailPage';
+import CommunitySearch from '@/pages/CommunitySearch';
 import SessionDetailPage from '@/pages/SessionDetailPage';
 import CaseDetailPage from '@/pages/CaseDetailPage';
 
@@ -85,7 +89,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="flex flex-col h-screen bg-theme-bg">
       <Header />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto p-6">
         {children}
       </main>
     </div>
@@ -182,6 +186,16 @@ function AppRoutes() {
           <PostDetailPage />
         )
       } />
+
+      <Route path="/community/search" element={
+        isAuthenticated ? (
+          <MainLayout>
+            <CommunitySearch />
+          </MainLayout>
+        ) : (
+          <CommunitySearch />
+        )
+      } />
       
       <Route path="/knowledge" element={
         isAuthenticated ? (
@@ -267,6 +281,14 @@ function AppRoutes() {
         <AdminRoute>
           <AdminLayout>
             <Review />
+          </AdminLayout>
+        </AdminRoute>
+      } />
+
+      <Route path="/tickets" element={
+        <AdminRoute>
+          <AdminLayout>
+            <TicketManagement />
           </AdminLayout>
         </AdminRoute>
       } />

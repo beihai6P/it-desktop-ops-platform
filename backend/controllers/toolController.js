@@ -76,24 +76,55 @@ const getToolById = async (req, res) => {
 };
 
 const createTool = async (req, res) => {
+  console.log('\n========================================');
+  console.log('[工具创建] 收到工具创建请求');
+  console.log('[工具创建] 请求方法:', req.method);
+  console.log('[工具创建] 请求路径:', req.path);
+  console.log('[工具创建] 请求头:', JSON.stringify(req.headers));
+  
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.log('[工具创建] 验证失败:', errors.array());
     return res.status(400).json({ errors: errors.array() });
   }
 
   try {
     // 解析请求体（支持 JSON 和 form-data）
     const body = req.body;
+    console.log('[工具创建] 请求体 keys:', Object.keys(body));
+    console.log('[工具创建] req.user:', req.user ? { id: req.user._id, name: req.user.name, role: req.user.role } : 'undefined');
+    let tags = [];
+    if (typeof body.tags === 'string') {
+      if (body.tags.trim()) {
+        tags = body.tags.split(',').map(t => t.trim()).filter(Boolean);
+      }
+    } else if (Array.isArray(body.tags)) {
+      tags = body.tags;
+    }
+
+    let compatibility = [];
+    if (typeof body.compatibility === 'string') {
+      try {
+        compatibility = JSON.parse(body.compatibility);
+      } catch {
+        if (body.compatibility.trim()) {
+          compatibility = body.compatibility.split(',').map(t => t.trim()).filter(Boolean);
+        }
+      }
+    } else if (Array.isArray(body.compatibility)) {
+      compatibility = body.compatibility;
+    }
+
     const toolData = {
       name: body.name,
       description: body.description,
       longDescription: body.longDescription,
       category: body.category,
       type: body.type || 'tool',
-      tags: typeof body.tags === 'string' ? JSON.parse(body.tags) : body.tags || [],
+      tags,
       version: body.version || '1.0.0',
       license: body.license,
-      compatibility: typeof body.compatibility === 'string' ? JSON.parse(body.compatibility) : body.compatibility || [],
+      compatibility,
       storageFileId: body.storageFileId,
       screenshots: [],
       id: generateToolId(),

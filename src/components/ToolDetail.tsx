@@ -1,6 +1,8 @@
-import { Download, Eye, Star, Share2, Check, Clock, Calendar, FileText, Shield } from 'lucide-react';
+import { useState } from 'react';
+import { Download, Eye, Star, Share2, Check, Clock, Calendar, FileText, Shield, ZoomIn } from 'lucide-react';
 import type { Tool } from '@/types';
 import CommentSection from './CommentSection';
+import ImageViewer from './ImageViewer';
 import { apiDownloadPost } from '@/scheduler';
 
 interface ToolDetailProps {
@@ -9,6 +11,7 @@ interface ToolDetailProps {
 }
 
 export default function ToolDetail({ tool, onClose }: ToolDetailProps) {
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string } | null>(null);
   const getTypeBadge = (type: string) => {
     switch (type) {
       case 'script':
@@ -159,16 +162,29 @@ export default function ToolDetail({ tool, onClose }: ToolDetailProps) {
 
           {tool.screenshots && tool.screenshots.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-3">截图</h3>
+              <h3 className="text-lg font-semibold mb-3">软件详情</h3>
               <div className="grid grid-cols-2 gap-4">
-                {tool.screenshots.map((screenshot, index) => (
-                  <img
-                    key={index}
-                    src={screenshot}
-                    alt={`截图 ${index + 1}`}
-                    className="w-full h-48 object-cover rounded-lg"
-                  />
-                ))}
+                {tool.screenshots.map((screenshot, index) => {
+                  const imageUrl = screenshot.startsWith('http') 
+                    ? screenshot 
+                    : `/api/tools/screenshot/${encodeURIComponent(screenshot)}`;
+                  return (
+                    <div 
+                      key={index}
+                      className="relative group cursor-pointer"
+                      onClick={() => setSelectedImage({ src: imageUrl, alt: `软件详情 ${index + 1}` })}
+                    >
+                      <img
+                        src={imageUrl}
+                        alt={`软件详情 ${index + 1}`}
+                        className="w-full h-48 object-cover rounded-lg transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-center justify-center">
+                        <ZoomIn className="w-8 h-8 text-white" />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -202,6 +218,14 @@ export default function ToolDetail({ tool, onClose }: ToolDetailProps) {
           </div>
         </div>
       </div>
+
+      {selectedImage && (
+        <ImageViewer
+          src={selectedImage.src}
+          alt={selectedImage.alt}
+          onClose={() => setSelectedImage(null)}
+        />
+      )}
     </div>
   );
 }

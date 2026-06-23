@@ -79,7 +79,7 @@ export default function Header() {
     setIsLoading(true);
     try {
       const response = await notificationAPI.getUnreadCount();
-      if (response.data.success) {
+      if (response.success && response.data && response.data.data) {
         setUnreadCount(response.data.data.count);
       }
     } catch (error) {

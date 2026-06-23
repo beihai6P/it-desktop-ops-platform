@@ -1,19 +1,23 @@
 import { useState } from 'react';
 import { X, Tag, Send } from 'lucide-react';
+import type { Category } from '@/types';
 
 interface CreatePostModalProps {
   onClose: () => void;
   onSubmit: (data: { title: string; content: string; tags: string[]; category: string }) => void;
+  categories?: Category[];
 }
 
-const categories = ['系统维护', '脚本工具', '硬件维护', '软件管理', '远程支持', '网络管理'];
+const defaultCategories = ['系统维护', '脚本工具', '硬件维护', '软件管理', '远程支持', '网络管理'];
 
-export default function CreatePostModal({ onClose, onSubmit }: CreatePostModalProps) {
+export default function CreatePostModal({ onClose, onSubmit, categories }: CreatePostModalProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [category, setCategory] = useState('系统维护');
+  const [category, setCategory] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+
+  const categoryOptions = categories?.map(c => c.name) || defaultCategories;
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -27,7 +31,7 @@ export default function CreatePostModal({ onClose, onSubmit }: CreatePostModalPr
   };
 
   const handleSubmit = () => {
-    if (title.trim() && content.trim()) {
+    if (title.trim() && content.trim() && category) {
       onSubmit({
         title: title.trim(),
         content: content.trim(),
@@ -72,7 +76,8 @@ export default function CreatePostModal({ onClose, onSubmit }: CreatePostModalPr
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-4 py-3 bg-primary/5 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
-                {categories.map((cat) => (
+                <option value="">请选择分类</option>
+                {categoryOptions.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
@@ -142,7 +147,7 @@ export default function CreatePostModal({ onClose, onSubmit }: CreatePostModalPr
             </button>
             <button
               onClick={handleSubmit}
-              disabled={!title.trim() || !content.trim()}
+              disabled={!title.trim() || !content.trim() || !category}
               className="px-6 py-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-4 h-4 inline-block mr-2" />

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Shield, BarChart3, Settings, LogOut, ChevronLeft, ChevronRight, FileCheck } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, BarChart3, Settings, LogOut, ChevronLeft, ChevronRight, FileCheck, Ticket, FileText, Wrench, FileWarning } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface SidebarProps {
@@ -10,6 +10,10 @@ interface SidebarProps {
 
 const menuItems = [
   { id: 'dashboard', label: '仪表台', icon: LayoutDashboard },
+  { id: 'tickets', label: '工单管理', icon: Ticket },
+  { id: 'documents', label: '文档管理', icon: FileText },
+  { id: 'tools', label: '工具管理', icon: Wrench },
+  { id: 'cases', label: '案例管理', icon: FileWarning },
   { id: 'users', label: '用户管理', icon: Users },
   { id: 'roles', label: '角色权限', icon: Shield },
   { id: 'review', label: '内容审核', icon: FileCheck },

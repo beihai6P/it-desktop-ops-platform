@@ -37,7 +37,7 @@ const protect = async (req, res, next) => {
 };
 
 const admin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
+  if (req.user && (req.user.isAdmin || req.user.role === 'admin')) {
     next();
   } else {
     res.status(403).json({ message: '没有管理员权限' });
@@ -73,11 +73,18 @@ const requirePermission = (permission) => {
       return;
     }
 
+    if (req.user.isAdmin || req.user.role === 'admin') {
+      next();
+      return;
+    }
+
     const userPermissions = req.user.permissions || [];
     const rolePermissions = req.user.roles ? req.user.roles.flatMap(role => role.permissions || []) : [];
     const allPermissions = [...userPermissions, ...rolePermissions];
 
-    if (!allPermissions.includes(permission)) {
+    const hasPermission = allPermissions.some(p => p === permission || (p && p.code === permission));
+
+    if (!hasPermission) {
       res.status(403).json({ message: '没有足够的权限' });
       return;
     }

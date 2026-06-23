@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Users, FileText, MessageSquare, Activity } from 'lucide-react';
+import { Users, FileText, MessageSquare, Activity, Ticket, Wrench, ArrowRight } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import SevenDayTrendChart from '../components/SevenDayTrendChart';
 import { analyticsAPI, postAPI, userAPI } from '../services/api';
 import type { AnalyticsData, Post, User } from '../types';
+import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<AnalyticsData>({
     totalUsers: 0,
     activeUsers: 0,
@@ -90,6 +92,73 @@ export default function Dashboard() {
           color="bg-orange-100"
           trend={{ value: 15, label: '较上周', isUp: true }}
         />
+      </div>
+
+      {/* 快速导航 */}
+      <div className="mb-6">
+        <h3 className="font-semibold text-theme-text mb-4">快速导航</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <button
+            onClick={() => navigate('/tickets')}
+            className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-lg transition-all text-left group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
+                <Ticket className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <p className="font-medium text-theme-text">工单管理</p>
+                <p className="text-sm text-text-muted">{stats.pendingTickets} 待处理</p>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-primary group-hover:translate-x-1 transition-all" />
+          </button>
+          <button
+            onClick={() => navigate('/documents')}
+            className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-lg transition-all text-left group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                <FileText className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-medium text-theme-text">文档管理</p>
+                <p className="text-sm text-text-muted">{stats.totalDocuments} 篇文档</p>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-primary group-hover:translate-x-1 transition-all" />
+          </button>
+          <button
+            onClick={() => navigate('/tools')}
+            className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-lg transition-all text-left group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                <Wrench className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="font-medium text-theme-text">工具管理</p>
+                <p className="text-sm text-text-muted">管理工具库</p>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-primary group-hover:translate-x-1 transition-all" />
+          </button>
+          <button
+            onClick={() => navigate('/review')}
+            className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-lg transition-all text-left group"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <p className="font-medium text-theme-text">内容审核</p>
+                <p className="text-sm text-text-muted">审核帖子评论</p>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-primary group-hover:translate-x-1 transition-all" />
+          </button>
+        </div>
       </div>
 
       {/* 7天趋势图表 */}

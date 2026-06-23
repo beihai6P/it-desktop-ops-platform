@@ -8,37 +8,19 @@ const roleController = require('../controllers/roleController');
 router.use(protect);
 
 // 获取所有角色
-router.get('/roles',
+router.get('/',
   requirePermission('ROLE_MANAGE'),
   roleController.getAllRoles
 );
 
-// 获取单个角色
-router.get('/roles/:id',
-  requirePermission('ROLE_MANAGE'),
-  roleController.getRoleById
-);
-
 // 创建角色
-router.post('/roles',
+router.post('/',
   requirePermission('ROLE_MANAGE'),
   [
     body('name').notEmpty().withMessage('角色名称不能为空'),
     body('code').notEmpty().withMessage('角色代码不能为空')
   ],
   roleController.createRole
-);
-
-// 更新角色
-router.put('/roles/:id',
-  requirePermission('ROLE_MANAGE'),
-  roleController.updateRole
-);
-
-// 删除角色
-router.delete('/roles/:id',
-  requirePermission('ROLE_MANAGE'),
-  roleController.deleteRole
 );
 
 // 获取所有权限
@@ -67,6 +49,24 @@ router.put('/permissions/:id',
 router.delete('/permissions/:id',
   requirePermission('ROLE_MANAGE'),
   roleController.deletePermission
+);
+
+// 获取单个角色
+router.get('/:id',
+  requirePermission('ROLE_MANAGE'),
+  roleController.getRoleById
+);
+
+// 更新角色
+router.put('/:id',
+  requirePermission('ROLE_MANAGE'),
+  roleController.updateRole
+);
+
+// 删除角色
+router.delete('/:id',
+  requirePermission('ROLE_MANAGE'),
+  roleController.deleteRole
 );
 
 // 初始化默认权限和角色
