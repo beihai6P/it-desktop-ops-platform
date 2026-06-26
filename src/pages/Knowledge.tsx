@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, FileText, FolderOpen, Tag, Search, ChevronRight, ExternalLink, Download, Eye, Heart, Filter, Plus, Star, Award, CheckCircle2, Lock } from 'lucide-react';
+import { BookOpen, FileText, FolderOpen, Tag, Search, ChevronRight, ChevronLeft, ExternalLink, Download, Eye, Heart, Filter, Plus, Star, Award, CheckCircle2, Lock } from 'lucide-react';
 import type { Document } from '@/types';
 import DocumentUpload from '@/components/DocumentUpload';
 import LoginRequiredToast from '@/components/LoginRequiredToast';
 import AIKnowledgeAssistant from '@/components/AIKnowledgeAssistant';
 import { documentAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
+
+const PAGE_SIZE = 20;
 
 type SortType = 'views' | 'downloads' | 'favorites' | 'updated';
 
@@ -84,20 +86,48 @@ export default function Knowledge() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [sortBy, setSortBy] = useState<SortType>('views');
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalDocuments, setTotalDocuments] = useState(0);
 
   useEffect(() => {
     loadDocuments();
-  }, []);
+  }, [currentPage, activeCategory, activeType]);
 
   const loadDocuments = async () => {
     try {
-      const response = await documentAPI.getAll();
+      const params: { page: number; limit: number; category?: string; type?: string } = {
+        page: currentPage,
+        limit: PAGE_SIZE,
+      };
+      if (activeCategory !== '全部') params.category = activeCategory;
+      if (activeType !== '全部') params.type = activeType;
+      
+      const response = await documentAPI.getAll(params);
       setDocuments(response.data.documents);
+      setTotalPages(response.data.pages);
+      setTotalDocuments(response.data.total);
     } catch (error) {
       console.error('Failed to load documents:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const handleCategoryChange = (category: string) => {
+    setActiveCategory(category);
+    setCurrentPage(1);
+  };
+
+  const handleTypeChange = (type: string) => {
+    setActiveType(type);
+    setCurrentPage(1);
   };
 
   const handleToggleFavorite = async (id: string) => {
@@ -275,7 +305,7 @@ export default function Knowledge() {
             <Filter className="w-4 h-4 text-text-muted" />
             <select
               value={activeCategory}
-              onChange={(e) => setActiveCategory(e.target.value)}
+              onChange={(e) => handleCategoryChange(e.target.value)}
               className="px-4 py-3 bg-theme-bg/50 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               {categories.map((category) => (
@@ -286,7 +316,7 @@ export default function Knowledge() {
           <div className="flex items-center gap-2">
             <select
               value={activeType}
-              onChange={(e) => setActiveType(e.target.value)}
+              onChange={(e) => handleTypeChange(e.target.value)}
               className="px-4 py-3 bg-theme-bg/50 border border-primary/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               {types.map((type) => (
@@ -448,7 +478,7 @@ export default function Knowledge() {
               <FolderOpen className="w-5 h-5 text-primary" />
               <h3 className="font-semibold text-theme-text">全部文档</h3>
             </div>
-            <span className="text-sm text-text-muted">共 {sortedDocuments.length} 个文档</span>
+            <span className="text-sm text-text-muted">共 {totalDocuments} 个文档</span>
           </div>
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -544,6 +574,69 @@ export default function Knowledge() {
             </div>
             <p className="text-text-muted">没有找到匹配的文档</p>
             <p className="text-sm text-text-muted mt-1">尝试使用其他关键词搜索</p>
+          </div>
+        )}
+
+        {/* 分页组件 */}
+        {!loading && totalDocuments > PAGE_SIZE && (
+          <div className="flex items-center justify-center mt-8 gap-2">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className={`flex items-center gap-1 px-4 py-2 rounded-xl transition-colors ${
+                currentPage === 1
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-primary/10 text-primary hover:bg-primary/20'
+              }`}
+            >
+              <ChevronLeft className="w-4 h-4" />
+              上一页
+            </button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => handlePageChange(pageNum)}
+                    className={`w-10 h-10 rounded-xl transition-colors ${
+                      currentPage === pageNum
+                        ? 'bg-primary text-white'
+                        : 'bg-gray-100 text-theme-text hover:bg-gray-200'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className={`flex items-center gap-1 px-4 py-2 rounded-xl transition-colors ${
+                currentPage === totalPages
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-primary/10 text-primary hover:bg-primary/20'
+              }`}
+            >
+              下一页
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            
+            <span className="text-sm text-text-muted ml-4">
+              共 {totalDocuments} 条 / 第 {currentPage}/{totalPages} 页
+            </span>
           </div>
         )}
       </div>
