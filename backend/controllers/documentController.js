@@ -51,7 +51,7 @@ const getDocumentById = async (req, res) => {
     document.views++;
     await document.save();
 
-    res.status(200).json(document);
+    res.status(200).json({ document });
   } catch (error) {
     res.status(500).json({ message: '服务器错误' });
   }
