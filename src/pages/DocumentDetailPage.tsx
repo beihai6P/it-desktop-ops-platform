@@ -27,9 +27,9 @@ export default function DocumentDetailPage() {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
       itemListElement: [
-        { '@type': 'ListItem', position: 1, name: '首页', item: 'https://www.mengmengyunwei.com' },
-        { '@type': 'ListItem', position: 2, name: '知识库', item: 'https://www.mengmengyunwei.com/knowledge' },
-        { '@type': 'ListItem', position: 3, name: document.title, item: `https://www.mengmengyunwei.com/knowledge/${document.id}` }
+        { '@type': 'ListItem', position: 1, name: '首页', item: 'https://www.lssll.cn' },
+        { '@type': 'ListItem', position: 2, name: '知识库', item: 'https://www.lssll.cn/knowledge' },
+        { '@type': 'ListItem', position: 3, name: document.title, item: `https://www.lssll.cn/knowledge/${document.id}` }
       ]
     };
 
@@ -39,10 +39,10 @@ export default function DocumentDetailPage() {
       headline: document.title,
       description: document.description,
       author: { '@type': 'Person', name: document.author },
-      publisher: { '@type': 'Organization', name: '萌萌的运维人', logo: { '@type': 'ImageObject', url: 'https://www.mengmengyunwei.com/favicon.svg' } },
+      publisher: { '@type': 'Organization', name: '萌萌的运维人', logo: { '@type': 'ImageObject', url: 'https://www.lssll.cn/favicon.svg' } },
       datePublished: document.createdAt,
       dateModified: document.updatedAt,
-      mainEntityOfPage: { '@type': 'WebPage', '@id': `https://www.mengmengyunwei.com/knowledge/${document.id}` },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': `https://www.lssll.cn/knowledge/${document.id}` },
       articleSection: document.category,
       keywords: document.tags.join(', ')
     };
@@ -90,7 +90,7 @@ export default function DocumentDetailPage() {
     createOgTag('og:title', docTitle);
     createOgTag('og:description', document.description);
     createOgTag('og:type', 'article');
-    createOgTag('og:url', `https://www.mengmengyunwei.com/knowledge/${document.id}`);
+    createOgTag('og:url', `https://www.lssll.cn/knowledge/${document.id}`);
 
     return () => {
       window.document.querySelectorAll('[data-seo-schema]').forEach((script) => script.remove());

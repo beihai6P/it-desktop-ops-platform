@@ -68,4 +68,4 @@ Allow: /community/
 Allow: /tools/
 Allow: /images/
 
-Sitemap: https://www.mengmengyunwei.com/sitemap.xml
+Sitemap: https://www.lssll.cn/sitemap.xml

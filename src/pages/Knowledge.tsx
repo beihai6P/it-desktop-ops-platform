@@ -100,8 +100,8 @@ export default function Knowledge() {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
       itemListElement: [
-        { '@type': 'ListItem', position: 1, name: '首页', item: 'https://www.mengmengyunwei.com' },
-        { '@type': 'ListItem', position: 2, name: '知识库', item: 'https://www.mengmengyunwei.com/knowledge' }
+        { '@type': 'ListItem', position: 1, name: '首页', item: 'https://www.lssll.cn' },
+        { '@type': 'ListItem', position: 2, name: '知识库', item: 'https://www.lssll.cn/knowledge' }
       ]
     };
 
@@ -110,9 +110,9 @@ export default function Knowledge() {
       '@type': 'CollectionPage',
       name: '知识库 - IT运维文档资料',
       description: '专业运维知识库，包含操作系统、脚本工具、办公软件、硬件设备、安全合规、网络管理、系统维护等多个分类的文档资料，助力技能提升。',
-      url: 'https://www.mengmengyunwei.com/knowledge',
+      url: 'https://www.lssll.cn/knowledge',
       inLanguage: 'zh-CN',
-      isPartOf: { '@type': 'WebSite', '@id': 'https://www.mengmengyunwei.com/#website' }
+      isPartOf: { '@type': 'WebSite', '@id': 'https://www.lssll.cn/#website' }
     };
 
     const createSchemaScript = (data: unknown, schemaId: string) => {
