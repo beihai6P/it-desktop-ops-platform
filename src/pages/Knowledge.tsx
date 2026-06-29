@@ -91,6 +91,49 @@ export default function Knowledge() {
   const [totalDocuments, setTotalDocuments] = useState(0);
 
   useEffect(() => {
+    window.document.title = '知识库 - IT运维文档资料 - 萌萌的运维人';
+
+    const existingScripts = window.document.querySelectorAll('[data-seo-schema]');
+    existingScripts.forEach((script) => script.remove());
+
+    const breadcrumbSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: '首页', item: 'https://www.mengmengyunwei.com' },
+        { '@type': 'ListItem', position: 2, name: '知识库', item: 'https://www.mengmengyunwei.com/knowledge' }
+      ]
+    };
+
+    const collectionPageSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: '知识库 - IT运维文档资料',
+      description: '专业运维知识库，包含操作系统、脚本工具、办公软件、硬件设备、安全合规、网络管理、系统维护等多个分类的文档资料，助力技能提升。',
+      url: 'https://www.mengmengyunwei.com/knowledge',
+      inLanguage: 'zh-CN',
+      isPartOf: { '@type': 'WebSite', '@id': 'https://www.mengmengyunwei.com/#website' }
+    };
+
+    const createSchemaScript = (data: unknown, schemaId: string) => {
+      const script = window.document.createElement('script');
+      script.type = 'application/ld+json';
+      script.dataset.seoSchema = schemaId;
+      script.textContent = JSON.stringify(data);
+      window.document.head.appendChild(script);
+      return script;
+    };
+
+    createSchemaScript(breadcrumbSchema, 'breadcrumb');
+    createSchemaScript(collectionPageSchema, 'collection');
+
+    return () => {
+      window.document.querySelectorAll('[data-seo-schema]').forEach((script) => script.remove());
+      window.document.title = '萌萌的运维人 - 一站式桌面运维互动平台';
+    };
+  }, []);
+
+  useEffect(() => {
     loadDocuments();
   }, [currentPage, activeCategory, activeType]);
 

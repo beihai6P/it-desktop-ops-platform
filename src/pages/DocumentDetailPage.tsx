@@ -14,6 +14,92 @@ export default function DocumentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!document) return;
+
+    const docTitle = `${document.title} - ${document.category} - 萌萌的运维人知识库`;
+    window.document.title = docTitle;
+
+    const existingScripts = window.document.querySelectorAll('[data-seo-schema]');
+    existingScripts.forEach((script) => script.remove());
+
+    const breadcrumbSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: '首页', item: 'https://www.mengmengyunwei.com' },
+        { '@type': 'ListItem', position: 2, name: '知识库', item: 'https://www.mengmengyunwei.com/knowledge' },
+        { '@type': 'ListItem', position: 3, name: document.title, item: `https://www.mengmengyunwei.com/knowledge/${document.id}` }
+      ]
+    };
+
+    const articleSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'TechArticle',
+      headline: document.title,
+      description: document.description,
+      author: { '@type': 'Person', name: document.author },
+      publisher: { '@type': 'Organization', name: '萌萌的运维人', logo: { '@type': 'ImageObject', url: 'https://www.mengmengyunwei.com/favicon.svg' } },
+      datePublished: document.createdAt,
+      dateModified: document.updatedAt,
+      mainEntityOfPage: { '@type': 'WebPage', '@id': `https://www.mengmengyunwei.com/knowledge/${document.id}` },
+      articleSection: document.category,
+      keywords: document.tags.join(', ')
+    };
+
+    const createSchemaScript = (data: unknown, schemaId: string) => {
+      const script = window.document.createElement('script');
+      script.type = 'application/ld+json';
+      script.dataset.seoSchema = schemaId;
+      script.textContent = JSON.stringify(data);
+      window.document.head.appendChild(script);
+      return script;
+    };
+
+    createSchemaScript(breadcrumbSchema, 'breadcrumb');
+    createSchemaScript(articleSchema, 'article');
+
+    const existingMetaTags = window.document.querySelectorAll('[data-seo-meta]');
+    existingMetaTags.forEach((tag) => tag.remove());
+
+    const createMetaTag = (name: string, content: string) => {
+      const meta = window.document.createElement('meta');
+      meta.name = name;
+      meta.content = content;
+      meta.dataset.seoMeta = name;
+      window.document.head.appendChild(meta);
+      return meta;
+    };
+
+    createMetaTag('description', document.description);
+    createMetaTag('keywords', document.tags.join(', '));
+    createMetaTag('author', document.author);
+
+    const existingOgTags = window.document.querySelectorAll('[data-seo-og]');
+    existingOgTags.forEach((tag) => tag.remove());
+
+    const createOgTag = (property: string, content: string) => {
+      const meta = window.document.createElement('meta');
+      meta.setAttribute('property', property);
+      meta.content = content;
+      meta.dataset.seoOg = property;
+      window.document.head.appendChild(meta);
+      return meta;
+    };
+
+    createOgTag('og:title', docTitle);
+    createOgTag('og:description', document.description);
+    createOgTag('og:type', 'article');
+    createOgTag('og:url', `https://www.mengmengyunwei.com/knowledge/${document.id}`);
+
+    return () => {
+      window.document.querySelectorAll('[data-seo-schema]').forEach((script) => script.remove());
+      window.document.querySelectorAll('[data-seo-meta]').forEach((tag) => tag.remove());
+      window.document.querySelectorAll('[data-seo-og]').forEach((tag) => tag.remove());
+      window.document.title = '萌萌的运维人 - 一站式桌面运维互动平台';
+    };
+  }, [document]);
+
   const loadDocument = useCallback(async () => {
     if (!id) return;
     setLoading(true);
